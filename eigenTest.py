@@ -39,7 +39,7 @@ x_0 = tf.Variable([1, 1, 1, 1, 1, 1], dtype ='float32')
 # Sampling parameters
 T = 30
 sampling_stages = 10**4
-sample_size = 2**10
+sample_size = 2**5
 
 #Training parameters
 batch_size = 2**7
@@ -52,42 +52,64 @@ def sampler(size):
 t_interior = sampler(sample_size)
 t_interior_tf = tf.Variable(t_interior, trainable=False)
 
-A = np.random.randn(6, 6)
-I = np.eye(6)
+A = tf.random.normal((6, 6))
 
+#Numpy f(x)
+# def f(x):
+#     n = np.shape(x)[0]
+#     spaced_norm = (np.linalg.norm(x, axis=1)**2)[:, np.newaxis, np.newaxis]
+#     xTA = np.tensordot(x, A, axes=1)
+#     xTAx = np.zeros(n)
+#     for i in range(n):
+#         xTAx[i] = np.dot(xTA[i], x[i])
+#     one = np.ones(n)
+#     temp1 = spaced_norm*A#x.TxA
+#     temp2 = (one-xTAx)[:, np.newaxis, np.newaxis]*I#(1-x.TAx)I
+#     temp3 = temp1 + temp2 #x.TxA + (1-x.TAx)I
+#     ret = tf.zeros((n, 6))
+#     for i in range(n):
+#         ret[i, :] = temp3[i]@x[i]
+#     #[x.TxA + (1-x.TAx)I]x
+#     return ret
+
+Id6 = tf.eye(6)
 def f(x):
-    n = np.shape(x)[0]
-    spaced_norm = (np.linalg.norm(x, axis=1)**2)[:, np.newaxis, np.newaxis]
-    xTA = np.tensordot(x, A, axes=1)
-    xTAx = np.zeros(n)
-    for i in range(n):
-        xTAx[i] = np.dot(xTA[i], x[i])
-    one = np.ones(n)
-    temp1 = spaced_norm*A#x.TxA
-    temp2 = (one-xTAx)[:, np.newaxis, np.newaxis]*I#(1-x.TAx)I
-    temp3 = temp1 + temp2 #x.TxA + (1-x.TAx)I
-    ret = np.zeros((n, 6))
-    for i in range(n):
-        ret[i, :] = temp3[i]@x[i]
-    #[x.TxA + (1-x.TAx)I]x
-    return ret
+    '''args:
+    x: tensor of shape (npoints, n), where npoints is the number of points in the grid.
+    '''
+    print(x.shape)
+    n = A.shape[0]
+    xT = tf.transpose(x) #(n x npoints)
+    xxT = tf.square(tf.norm(x, axis=1))#shape (npoints,)
+    xAxT = tf.einsum('ij, jk, ik -> i', x, A, x)
+    mat1 = tf.tensordot(A, xxT, axes=0)#shape (n,n,npoints), this is a pile of npoints matrices
+    mat2 = tf.tensordot(Id6, 1-xAxT, axes=0)#another stack of npoints matrices
+    mat_tot = mat1+mat2 #shape(n,n,npoints)
+    out = tf.einsum("ijk,kj->ki", mat_tot, x)
+    return out
 
+
+def x_tilde(t, model):
+    starting = (1-t)*tf.transpose(x_0)[tf.newaxis, :]
+    model_part = t*model(t)
+    return starting + model_part
 
 def loss(model):
     # compute function value and derivatives at current sampled points
     with tf.GradientTape(persistent=True) as tape:
         tape.watch(t_interior_tf)
-        x = model(t_interior_tf)
+        x = x_tilde(t_interior_tf, model)
         x_t = tape.gradient(x,t_interior_tf)
+
     x_err = x_t + x - f(x)
 
     L1 = tf.reduce_mean(tf.square(x_err))
 
-    zeros = tf.zeros(shape = (1,6), dtype=tf.dtypes.float32)
-    zed_x = model(zeros)
-    L2 = tf.reduce_mean(tf.square(zed_x - x_0))
+    # zeros = tf.zeros(shape = (1,), dtype=tf.dtypes.float32)
+    # zed_x = model(zeros)
+    # L2 = tf.reduce_mean(tf.square(zed_x - x_0))'
 
-    return (L1,L2)
+    return L1
 
 optimizer = tf.keras.optimizers.Adam()
 
@@ -96,7 +118,7 @@ def train_step(model):
   def inner_func():
     with tf.GradientTape() as tape:
       # Compute the loss value for this minibatch.
-      L_ode = tf.reduce_sum(loss(model))
+      L_ode = loss(model)
 
     # Use the gradient tape to automatically retrieve
     # the gradients of the trainable variables with respect to the loss.
@@ -109,7 +131,6 @@ def train_step(model):
   return inner_func
 
 t_points = np.linspace(0,10,1000)
-
 t_points_tf = tf.cast(tf.Variable(t_points, trainable=False),dtype=tf.float32)
 
 def train_model(model):
