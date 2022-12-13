@@ -193,7 +193,7 @@ class eigSolverNN():
 
 			#convert to tf.Tensor format
 			self.losses = tf.stack(self.losses)
-			self.eigvals = tf.stack(self.eigval)
+			self.eigvals = tf.stack(self.eigvals)
 			self.eigvecs = tf.stack(self.eigvecs)
 
 			print(f"losses were: initial {self.losses[0]}, last: {self.losses[-1]}")
@@ -201,7 +201,7 @@ class eigSolverNN():
 
 		except KeyboardInterrupt:
 
-			print(f"losses were: initial {self.losses[0]}, last: {self.losses[epoch]}")
+			print(f"losses were: initial {self.losses[0]}, last: {self.losses[epoch-1]}")
 			return None
 
 	def compute_eig( self ) :
