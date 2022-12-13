@@ -19,7 +19,7 @@ from tensorflow.python.ops.numpy_ops import reshape
 
 
 inputs = tf.keras.Input(shape=(2))
-x = layers.Dense(64, activation = "sigmoid")(inputs)
+x = layers.Dense(256, activation = "sigmoid")(inputs)
 output = layers.Dense(1)(x)
 
 ode_solver = tf.keras.Model(inputs, output, name="ode_solver")
@@ -37,7 +37,7 @@ sample_size = 2**10
 
 #Training parameters
 batch_size = 2**4
-epochs = 11
+epochs = 21
 epoch_size = 100
 
 def sampler(size):
@@ -58,19 +58,34 @@ def loss(model):
 
     theta_tt = tape.gradient(theta_t,t_interior_tf)
     
+    # Test #####################
+    # xt = t_interior_tf
+    # theta = tf.exp(-xt[:,1]*np.pi**2)*tf.sin(xt[:,0]*np.pi)
+    # theta_t = [(np.pi**2)*tf.exp(-xt[:,1]*np.pi**2)*tf.sin(xt[:,0]*np.pi), tf.exp(-xt[:,1]*np.pi**2)*tf.cos(xt[:,0]*np.pi)*np.pi]
+    # theta_tt = [(np.pi**4)*tf.exp(-xt[:,1]*np.pi**2)*tf.sin(xt[:,0]*np.pi), -tf.exp(-xt[:,1]*np.pi**2)*tf.sin(xt[:,0]*np.pi)*(np.pi**2)]
+    # theta_t = tf.stack(theta_t, axis=1)
+    # theta_tt = tf.stack(theta_tt, axis=1)
+    # Test #####################
+    
     # print(f"{theta=}")
     # print(f"{t_interior_tf=}")
     # print(f"\n\n\n{theta_t=},\n{theta_tt=}\n\n\n")
+    # print(f"{theta=}")
+    # print(f"{theta_t=}")
+    # print(f"{theta_tt=}")
+    # print(f"{t_interior_tf[:,0]=}")
+    # print(f"{t_interior_tf[:,1]=}")
     t = t_interior_tf[:,0]
     x = t_interior_tf[:,1]
-    N = tf.cast(theta, np.float64)[:,0]
-    e1 = tf.sin(np.pi*x)
-    e2 = (t-1)*np.pi**2*e1
-    e3 = -2*t*N
-    e4 = t*(2-4*x)*theta_t[:,1]
-    e5 = x*(1-x)*(t*(theta_tt[:,1]-theta_t[:,0])-N)    
+    N = tf.cast(theta, np.float64)#[:,0]
     
-    theta_err = e1+e2+e3+e4+e5
+    # e1 = tf.sin(np.pi*x)
+    # e2 = (t-1)*np.pi**2*e1
+    # e3 = -2*t*N
+    # e4 = t*(2-4*x)*theta_t[:,1]
+    # e5 = x*(1-x)*(t*(theta_tt[:,1]-theta_t[:,0])-N)    
+    
+    # theta_err = e1+e2+e3+e4+e5
     
     # print(f"{theta_err=}")
     # print(f"{e1=}")
@@ -79,13 +94,21 @@ def loss(model):
     # print(f"{e4=}")
     # print(f"{e5=}")
     
-    L1 = tf.reduce_mean(tf.square(theta_err))
-    # L2 = tf.reduce_mean(tf.square(zed_theta - theta_0))
     
-    # return (L1,L2)
+    uxx = (-(np.pi**2)*(1-t)*tf.sin(np.pi*x)) + t*((2*(1-x)*theta_t[:,1]) - (2*N) + x*(1-x)*theta_tt[:,1])
+    ut = -tf.sin(np.pi*x) + x*(1-x)*(N + t*theta_t[:,0])
+    
+    theta_err = uxx - ut
+    
+    # print(theta_err)
+    # print(dir(theta_err))
+    # # print(theta_err.numpy()s)
+    
+    L1 = tf.reduce_mean(tf.square(theta_err))
+    # print(f"{L1=}")
     return L1
 
-optimizer = tf.keras.optimizers.Adam()
+optimizer = tf.keras.optimizers.Adam(0.1)
 
 def train_step(model):
   @tf.function
@@ -104,57 +127,46 @@ def train_step(model):
     return L_ode, grads
   return inner_func
 
-t_points = np.zeros((1000,2))
-t_points[:500,1] = np.linspace(0,3,500)
-t_points[500:,1] = np.linspace(3,0,500)
-t_points[:500,0] = np.ones(500)*0.5
-t_points[500:,0] = np.ones(500)*0.2
-
-
-t_points_tf = tf.cast(tf.Variable(t_points, trainable=False),dtype=tf.float32)
 
 def train_model(model):
   try:
-    # simulations = []
     losses = []
-    # t_points = np.linspace(0,10,1000)
-    t_points_tf = tf.cast(tf.Variable(t_points, trainable=False),dtype=tf.float32)
     train_step_function = train_step(model)
     
     start = time.time()
-    step_size = 1e-3
-    optimizer.lr.assign(step_size)     
     for s in range(1,epochs):
-      for _ in tqdm(range(epoch_size)):
-        mean_loss = []
-        t_interior = sampler(sample_size) 
-        t_interior_tf.assign(t_interior)
-        
-        for _ in range(batch_size): 
-          current_loss, grads = train_step_function()
-          mean_loss.append(current_loss)
+        step_size = 1e-1*0.7**s
+        optimizer.lr.assign(step_size)     
+        for _ in tqdm(range(epoch_size)):
+            mean_loss = []
+            t_interior = sampler(sample_size) 
+            t_interior_tf.assign(t_interior)
+            
+            for _ in range(batch_size): 
+                current_loss, grads = train_step_function()
+                mean_loss.append(current_loss)
 
-        # simulations.append(model(t_points_tf))
-        mean_loss = np.array(mean_loss).mean()
-        losses.append(mean_loss)
+            mean_loss = np.array(mean_loss).mean()
+            losses.append(mean_loss)
 
-      end = time.time()
-      print(
-      f"""Training loss of value func at step {s*100}: 
-      loss: {mean_loss}. 
-      ######################
-      """)
+        end = time.time()
+        print(
+        f"""Training loss of value func at step {s*100}: 
+        loss: {mean_loss}. 
+        ######################
+        """)
 
-      #print("Step: %s" % s)
-      #print("Seen so far: %s samples" % ((s + 1) * s_x_interior))
-      print("Time: %.2f" % (end - start))
-      print("-----------")
-      print('Learning rate:  %.2e' % optimizer.learning_rate.numpy())
+        #print("Step: %s" % s)
+        #print("Seen so far: %s samples" % ((s + 1) * s_x_interior))
+        print("Time: %.2f" % (end - start))
+        print("-----------")
+        print('Learning rate:  %.2e' % optimizer.learning_rate.numpy())
 
-      start = time.time()
+        start = time.time()
 
     return np.array(losses)
   except KeyboardInterrupt:
+    print("Interupted, making plots anyway")
     return np.array(losses)
 
 losses = train_model(ode_solver)
