@@ -1,6 +1,5 @@
 import os
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 import numpy as np
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # removes tf informative messages
 import tensorflow as tf
@@ -20,7 +19,7 @@ model = tf.keras.Sequential( [inputs, l1, out])
 t_grid = tf.linspace(0,1, 2000)[:,tf.newaxis]
 
 class eigSolverNN():
-'''class for diagonalization of a symmetric matrix A, by training of a neural network. 
+	'''class for diagonalization of a symmetric matrix A, by training of a neural network. 
 	The NN is rained to solve the ODE defined by Yi et al. in 
 	https://www.researchgate.net/publication/222949356_Neural_networks_based_approach_for_computing_eigenvectors_and_eigenvalues_of_symmetric_matrix
 	The solution of the ODE is proven to converge to an eigenvector of the matrix A.
@@ -103,7 +102,7 @@ class eigSolverNN():
 
 
 
-	def x_tilde(self, t, model):
+	def x_tilde(self, t):
 		'''defines ansatz for solution of our ODE:
 		args:
 			t: input of shape (npoints,1)
@@ -112,7 +111,7 @@ class eigSolverNN():
 			trial solution at all times contained in t, as tensor of shape (npoints, n_dim)
 		'''
 		starting = (1-t)*tf.transpose(self.x0)
-		model_part = t*model(t)
+		model_part = t*self.model(t)
 		return starting + model_part
 
 	@tf.function
@@ -127,7 +126,7 @@ class eigSolverNN():
 		# compute derivatives of the trial solution with respect to input t, at all points specified by t_in
 		with tf.GradientTape() as tape:
 			tape.watch(t_in)
-			x = self.x_tilde(t_in, self.model)
+			x = self.x_tilde(t_in)
 		
 		x_t = tape.gradient(x,t_in)
 
@@ -170,9 +169,9 @@ class eigSolverNN():
 			returns: None'''
 
 		try:
-			self.losses = tf.empty(Nepochs)
-			self.eigvals = tf.empty(Nepochs)
-			self.eigvecs = tf.empty(Nepochs, self.n_dim)
+			self.losses = []
+			self.eigvals = []
+			self.eigvecs = []
 			temp_grid = self.t_grid
 
 			for epoch in tqdm(range(Nepochs)):
@@ -184,8 +183,18 @@ class eigSolverNN():
 					#update self.model using gradient_step
 					curr_loss = self.gradient_step(t_current) 
 
-				self.losses[epoch]=curr_loss
-				self.eigvals[epoch], self.eigvecs[epoch] = self.compute_eig()
+				#store loss
+				self.losses.append(curr_loss)
+
+				#store eigvalues and eigvectors
+				eigval, eigvec = self.compute_eig()
+				self.eigvals.append(eigval)
+				self.eigvecs.append(eigvec)
+
+			#convert to tf.Tensor format
+			self.losses = tf.stack(self.losses)
+			self.eigvals = tf.stack(self.eigval)
+			self.eigvecs = tf.stack(self.eigvecs)
 
 			print(f"losses were: initial {self.losses[0]}, last: {self.losses[-1]}")
 			return None
@@ -205,7 +214,8 @@ class eigSolverNN():
 
 		#store current prediction for eigenvector
 		eigvec = self.x_tilde(self.t_grid[-1])
-		#and the corresponding eigenvalue
-		eigval = (tf.transpose(eigvec) @ self.A @ eigvec )/(tf.norm(eigvec)**2) #eigvec^T A eigvec /()
+		#and the corresponding eigenvalue. Note that eigvec.shape = (1,6) and not (6,1)
+		#so that we need to transpose it on the RHS of A
+		eigval = (eigvec @ self.A @ tf.transpose(eigvec) )/(tf.norm(eigvec)**2) 
 
 		return eigval, eigvec
