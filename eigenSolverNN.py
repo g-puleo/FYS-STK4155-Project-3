@@ -6,138 +6,203 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # removes tf informative messages
 import tensorflow as tf
 tf.keras.backend.set_floatx('float64') #set default precision to double
 
+#DEFINITION OF DEFAULT ARGS TO THE eigSolver.__init__ function.
 
-
-
-
-#DEFINE NEURAL NET MODEL
+#DEFINE DEFAULT NEURAL NET MODEL
 N_hidden = 100
 inputs = tf.keras.Input(shape=(1), name="time")
 l1 = tf.keras.layers.Dense(N_hidden, activation="sigmoid")
 out = tf.keras.layers.Dense(6, activation='linear')
-
 model = tf.keras.Sequential( [inputs, l1, out])
 
-#define time grid and initial condition
+#define default time grid (DATASET)
 #note well: final time T=1 is chosen after looking at Forward Euler evolution
-t_in = tf.linspace(0,1, 2000)[:,tf.newaxis]
-x_0 = tf.ones((6,1), dtype='float64')#just to test use ones()
+t_grid = tf.linspace(0,1, 2000)[:,tf.newaxis]
 
-#define matrix to diagonalize
-Q = tf.random.normal((6,6), dtype='float64', seed=121222)
-A = 0.5*(Q+tf.transpose(Q))
-eigval, eigvec = tf.linalg.eigh(A)
-print(f"eigvalues:{eigval}")
-print(f"eigvectors: {eigvec}")
-#and also the identity
-Id6 = tf.eye(6, dtype='float64')
+class eigSolverNN():
+'''class for diagonalization of a symmetric matrix A, by training of a neural network. 
+	The NN is rained to solve the ODE defined by Yi et al. in 
+	https://www.researchgate.net/publication/222949356_Neural_networks_based_approach_for_computing_eigenvectors_and_eigenvalues_of_symmetric_matrix
+	The solution of the ODE is proven to converge to an eigenvector of the matrix A.
 
-#define training parameters
-optimizer = tf.keras.optimizers.Adam()
-learning_rate = 1e-3
-optimizer.lr.assign(learning_rate)
-Nepochs = 10000
+	Attributes:
 
-#define function  f which enters ode
-def f(x):
-	'''args:
-	x: tensor of shape (npoints, n), where npoints is the number of points in the grid.
-	'''
-	n = A.shape[0]
-	xT = tf.transpose(x) #(n x npoints)
-	xxT = tf.square(tf.norm(x, axis=1))#shape (npoints,)
-	xAxT = tf.einsum('ij, jk, ik -> i', x, A, x)
-	mat1 = tf.tensordot(A, xxT, axes=0)#shape (n,n,npoints), this is a pile of npoints matrices
-	mat2 = tf.tensordot(Id6, 1-xAxT, axes=0)#another stack of npoints matrices
-	mat_tot = mat1+mat2 #shape(n,n,npoints)
-	out = tf.einsum("ijk,kj->ki", mat_tot, x)
-	return out
+		model: 	tensorflow model which is used to fit the solution to the ODE
+		A: 		symmetric matrix to diagonalize
+		x0: 	initial condition of ODE
+		optimizer: tf.keras.optimizers.Optimizer which does SGD
+		t_grid:	the grid of time steps where solution is wanted
+		n_dim: 	A.shape[0] (dimension of space)
+		Id: 	Identity matrix 
 
+		The following attributes are availablle after calling self.train_model()
 
-
-def x_tilde(t, model):
-	'''defines ansatz for solution of our ODE:
-	args:
-		t: input of shape (n,1)
-		model: neural net model built with keras
-	'''
-	starting = (1-t)*tf.transpose(x_0)
-	model_part = t*model(t)
-	return starting + model_part
-
-
-def loss(model):
-	'''computes mean squared difference between rhs and lhs of ode, computed at every timestep.
-	args:
-		model (tf.Model neural network)'''
-
-	# compute function value and derivatives at current sampled points
-	with tf.GradientTape() as tape:
-		tape.watch(t_in)
-		x = x_tilde(t_in, model)
+		loss:	sequence of losses computed after every epoch of training
+		eigvecs: sequence of vectors, which should approach an eigenvector of the matrix A as we train more
+		eigvals: (supposed) eigenvalues corresponding to the eigvecs . 
 	
-	x_t = tape.gradient(x,t_in)
+	Methods: 
 
-	x_err = x_t + x - f(x)
-	L1 = tf.reduce_mean(tf.square(x_err))
+		f:		function f defined in the paper 
+		x_tilde: evaluate trial solution at time step or series of time steps
+		loss:	compute loss function at given batch
+		gradient_step: perform one GD step on a given batch
+		train_model: trains the model performing SGD
+		compute_eigs: computes current estimate of eigenvalue and eigenvector
 
-	return L1
+		'''
+	
+	def __init__(self, A, x0, model=model, optimizer=tf.keras.optimizers.Adam(), t_grid = t_grid):
+		'''standard constructor of eigSolver
+		Args:
+			A: tf.Tensor() of shape (n,n). It's the matrix to be diagonalized. Needs to be symmetric for the result to be meaningful.
+				Make sure to use 'float64' as dtype.
+			x0: initial condition of the ode, as tf.Tensor of shape (n,1),
+			model: instance of tf.Model()( neural network model). Defaults to an instance of tf.Sequential, 
+				with a hidden layer made of 100 neurons.
+			optimizer: instance of any subclass of tf.keras.optimizers.Optimizer(). Defaults to Adam.
+			t_grid: whole grid of time steps where the solution is wanted and where the net will be trained.
+			
+			'''
+		self.model = model
+		self.A = A 
+		#track dimension of space
+		self.n_dim = A.shape[0]
+		#make a corresponding identity matrix
+		self.Id =  tf.eye(self.n_dim, dtype='float64')
 
-
-def gradient_step():
-	with tf.GradientTape() as tape:
-		#model's trainable variables should be watched automatically
+		self.optimizer = optimizer
+		self.t_grid = t_grid
 		
-		#compute the loss function 
-		L = loss(model)
-
-
-	gradient = tape.gradient(L, model.trainable_variables)
-	optimizer.apply_gradients(zip(gradient, model.trainable_variables))
-	#print("###gradient is:\n")
-	#print(gradient)
-	#print('\n\n\n ###after update trainable variables of model:')
-	#print(model.trainable_variables)
-	return L
+		self.x0 = x0
 
 
 
+	#define function  f which enters ode
 
-def train_model():
+	@tf.function
+	def f(self, x):
+		'''
+		args:
+			x: tensor of shape (npoints, n_dim), where npoints is the number of points in the grid, n_dim is 
+			the dimensionality of the space.
 
-	try:
-		losses = []
-		for epoch in tqdm(range(Nepochs)):
-			curr_loss = gradient_step() 
-			losses.append(curr_loss.numpy())
-			# print(f"\n\n\n ####ITERATION NR. {ii}\n\n")
-			# print(f"\ncurr_loss={curr_loss}\n")
-
-		print(f"losses were: initial {losses[0]}, last: {losses[-1]}")
-		return losses
-	except KeyboardInterrupt:
-
-		print(f"losses were: initial {losses[0]}, last: {losses[-1]}")
-		return losses
-
-
-
-losses = train_model()
-
-print(tf.linalg.eigh(A))
-print(x_tilde(1*tf.ones((1,1), dtype='float64'), model) )
+		returns:
+			out: tensor of the same shape as the input x, corresponding to the action of the function 
+			f(y)= [y^T y A - (1-y^T A y) I ] y, where the column vector y in this expression corresponds to every
+			row of the tensor x in input.
+		'''
+		xT = tf.transpose(x) #(n x npoints)
+		xxT = tf.square(tf.norm(x, axis=1))#shape (npoints,)
+		xAxT = tf.einsum('ij, jk, ik -> i', x, self.A, x) #keep only diagonal elements of tensor outer product using einsum
+		mat1 = tf.tensordot(self.A, xxT, axes=0)#shape (n,n,npoints), this is a pile of npoints matrices
+		mat2 = tf.tensordot(self.Id, 1-xAxT, axes=0)#another stack of npoints matrices
+		mat_tot = mat1+mat2 #this has shape(n,n,npoints)
+		out = tf.einsum("ijk,kj->ki", mat_tot, x) 
+		return out
 
 
 
-final_evo = x_tilde(t_in, model).numpy()
+	def x_tilde(self, t, model):
+		'''defines ansatz for solution of our ODE:
+		args:
+			t: input of shape (npoints,1)
+			model: neural net model built with keras
+		returns:
+			trial solution at all times contained in t, as tensor of shape (npoints, n_dim)
+		'''
+		starting = (1-t)*tf.transpose(self.x0)
+		model_part = t*model(t)
+		return starting + model_part
+
+	@tf.function
+	def loss(self, t_in):
+		'''computes mean squared difference between rhs and lhs of ode, computed at every timestep define in t_in.
+		args:
+			t_in: tensor of shape (N,1), containing batch of time samples where cost is evaluated
+		returns:
+			loss: cost function at given sampled points'''
 
 
-for ii in range(6):
-	plt.plot(t_in, final_evo[:,ii])
+		# compute derivatives of the trial solution with respect to input t, at all points specified by t_in
+		with tf.GradientTape() as tape:
+			tape.watch(t_in)
+			x = self.x_tilde(t_in, self.model)
+		
+		x_t = tape.gradient(x,t_in)
 
-plt.title("elements of eigenvector")
-plt.figure()
+		#define cost as a "MSE"
+		x_err = x_t + x - self.f(x)
+		L1 = tf.reduce_mean(tf.square(x_err))
 
-plt.plot(np.arange(len(losses)), losses)
-plt.title("loss")
-plt.show()
+		return L1
+
+	@tf.function
+	def gradient_step(self, t_in):
+		'''perform gradient descent step. 
+		 args:
+		 t_in: batch of points used to compute the gradient of loss
+
+		 returns:
+		 loss: loss at current batch '''
+
+
+		#compute gradient of loss at t_in
+		with tf.GradientTape() as tape:
+			#model's trainable variables should be watched automatically by the gradienttape
+			
+			#compute the loss function 
+			L = self.loss(t_in)
+
+
+		gradient = tape.gradient(L, self.model.trainable_variables)
+
+		#update network parameters (gradient step)
+		self.optimizer.apply_gradients(zip(gradient, self.model.trainable_variables))
+		
+		return L
+
+
+	def train_model(self,Nepochs, Nbatches):
+		'''perform SGD using self.t_grid as dataset, which is split into Nbatches batches.'''
+
+		try:
+			self.losses = tf.empty(Nepochs)
+			self.eigvals = tf.empty(Nepochs)
+			self.eigvecs = tf.empty(Nepochs, self.n_dim)
+			temp_grid = self.t_grid
+
+			for epoch in tqdm(range(Nepochs)):
+				#shuffle dataset at every epoch
+				temp_grid = tf.random.shuffle(temp_grid)
+				for ii in range(Nbatches):
+					t_current = temp_grid[ii::Nbatches,:]
+
+					#update self.model using gradient_step
+					curr_loss = self.gradient_step(t_current) 
+
+				self.losses[epoch]=curr_loss
+				self.eigvals[epoch], self.eigvecs[epoch] = self.compute_eig()
+
+			print(f"losses were: initial {self.losses[0]}, last: {self.losses[-1]}")
+			return None
+
+		except KeyboardInterrupt:
+
+			print(f"losses were: initial {self.losses[0]}, last: {self.losses[epoch]}")
+			return None
+
+	def compute_eig( self ) :
+		'''compute current prediction for the eigenvector and the corresponding eigvalue.
+		This is done computing x_tilde at the latest time step in the training dataset.
+
+		returns:
+			eigval: sequence of values, which should approach an eigenvalue. 
+			eigvec: sequence of vectors, which should approach the corresponding eigenvector.'''
+
+		#store current prediction for eigenvector
+		eigvec = self.x_tilde(self.t_grid[-1])
+		#and the corresponding eigenvalue
+		eigval = (tf.transpose(eigvec) @ self.A @ eigvec )/(tf.norm(eigvec)**2) #eigvec^T A eigvec /()
+
+		return eigval, eigvec
