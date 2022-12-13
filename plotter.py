@@ -19,7 +19,6 @@ def plot_eigenvector_components_convergence(time, time_evolution_array):
     plt.xlabel('time [-]')
     plt.ylabel('Eigenvector Components')
 
-    #transpose to make it of shape (dim, N), for loop happens along axis 0.
     for component in time_evolution_array:
         plt.plot(time, component, lw=2, zorder=1)
         x_cordinate = time[-1]
