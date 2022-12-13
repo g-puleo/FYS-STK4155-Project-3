@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
 
@@ -12,14 +13,13 @@ def plot_eigenvector_components_convergence(time, time_evolution_array):
 
     args:
         time: array (or tensor) containing N timesteps
-        time_evolution_array: np.ndarray (or tf.Tensor) of shape (N, dim), dim=dimension of space.
+        time_evolution_array: np.ndarray (or tf.Tensor) of shape (dim, N), dim=dimension of space.
     """
     fig = plt.figure(figsize=figsize)
     plt.xlabel('time [-]')
     plt.ylabel('Eigenvector Components')
 
     #transpose to make it of shape (dim, N), for loop happens along axis 0.
-    time_evolution_array = tf.transpose(time_evolution_array)
     for component in time_evolution_array:
         plt.plot(time, component, lw=2, zorder=1)
         x_cordinate = time[-1]
