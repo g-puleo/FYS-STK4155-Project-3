@@ -35,7 +35,7 @@ class eigSolverNN():
 		n_dim: 	A.shape[0] (dimension of space)
 		Id: 	Identity matrix 
 
-		The following attributes are availablle after calling self.train_model()
+		The following attributes are availablle after calling the method train_model()
 
 		loss:	sequence of losses computed after every epoch of training
 		eigvecs: sequence of vectors, which should approach an eigenvector of the matrix A as we train more
@@ -62,7 +62,7 @@ class eigSolverNN():
 				with a hidden layer made of 100 neurons.
 			optimizer: instance of any subclass of tf.keras.optimizers.Optimizer(). Defaults to Adam.
 			t_grid: whole grid of time steps where the solution is wanted and where the net will be trained.
-			
+					Defaults to a sequence of 2000 time steps evenly spaced in the interval [0,1]
 			'''
 		self.model = model
 		self.A = A 
@@ -164,7 +164,10 @@ class eigSolverNN():
 
 
 	def train_model(self,Nepochs, Nbatches):
-		'''perform SGD using self.t_grid as dataset, which is split into Nbatches batches.'''
+		'''perform SGD using self.t_grid as dataset.
+			args: Nepochs: number of epochs for training
+				  Nbatches: number of batches 
+			returns: None'''
 
 		try:
 			self.losses = tf.empty(Nepochs)
