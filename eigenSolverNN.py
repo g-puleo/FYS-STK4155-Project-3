@@ -16,7 +16,7 @@ model = tf.keras.Sequential( [inputs, l1, out])
 
 #define default time grid (DATASET)
 #note well: final time T=1 is chosen after looking at Forward Euler evolution
-t_grid = tf.linspace(0,1, 2000)[:,tf.newaxis]
+t_grid = tf.linspace(0,1, 100)[:,tf.newaxis]
 
 class eigSolverNN():
 	'''class for diagonalization of a symmetric matrix A, by training of a neural network. 
@@ -51,17 +51,19 @@ class eigSolverNN():
 
 		'''
 	
-	def __init__(self, A, x0, model=model, optimizer=tf.keras.optimizers.Adam(), t_grid = t_grid):
+	def __init__(self, A, x0, model=model, optimizer=tf.keras.optimizers.Adam(), t_grid = t_grid, N_tr=50, gamma=1):
 		'''standard constructor of eigSolver
 		Args:
-			A: tf.Tensor() of shape (n,n). It's the matrix to be diagonalized. Needs to be symmetric for the result to be meaningful.
-				Make sure to use 'float64' as dtype.
-			x0: initial condition of the ode, as tf.Tensor of shape (n,1),
-			model: instance of tf.Model()( neural network model). Defaults to an instance of tf.Sequential, 
-				with a hidden layer made of 100 neurons.
-			optimizer: instance of any subclass of tf.keras.optimizers.Optimizer(). Defaults to Adam.
-			t_grid: whole grid of time steps where the solution is wanted and where the net will be trained.
-					Defaults to a sequence of 2000 time steps evenly spaced in the interval [0,1]
+			A: 			tf.Tensor() of shape (n,n). It's the matrix to be diagonalized. Needs to be symmetric for the result to be meaningful.
+						Make sure to use 'float64' as dtype.
+			x0: 		initial condition of the ode, as tf.Tensor of shape (n,1),
+			model: 		instance of tf.Model()( neural network model). Defaults to an instance of tf.Sequential, 
+						with a hidden layer made of 100 neurons.
+			optimizer: 	instance of any subclass of tf.keras.optimizers.Optimizer(). Defaults to Adam.
+			t_grid: 	whole grid of time steps where the solution is wanted and where the net will be trained.
+						Defaults to a sequence of 2000 time steps evenly spaced in the interval [0,1].
+			N_tr:		Number of initial steps where having low derivative gets an extra penalty. 	
+			gamma:		Coefficient for penalty on low derivative during transient
 			'''
 		self.model = model
 		self.A = A 
@@ -75,6 +77,8 @@ class eigSolverNN():
 		
 		self.x0 = x0
 
+		self.transient = N_tr
+		self.gamma = gamma
 
 
 	#define function  f which enters ode
@@ -133,6 +137,7 @@ class eigSolverNN():
 		#define cost as a "MSE"
 		x_err = x_t + x - self.f(x)
 		L1 = tf.reduce_mean(tf.square(x_err))
+		
 
 		return L1
 
@@ -173,10 +178,10 @@ class eigSolverNN():
 			self.eigvals = []
 			self.eigvecs = []
 			temp_grid = self.t_grid
+			temp_grid = tf.random.shuffle(temp_grid)
 
 			for epoch in tqdm(range(Nepochs)):
 				#shuffle dataset at every epoch
-				temp_grid = tf.random.shuffle(temp_grid)
 				for ii in range(Nbatches):
 					t_current = temp_grid[ii::Nbatches,:]
 
