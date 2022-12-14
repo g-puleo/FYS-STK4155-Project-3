@@ -8,8 +8,9 @@ from IPython import display
 
 from scipy.integrate import odeint
 
-from tensorflow.keras import Sequential
-from tensorflow.keras import layers
+# from tensorflow.keras import Sequential
+# from tensorflow.keras import layers
+layers = tf.keras.layers
 from tqdm import tqdm
 
 from tensorflow.python.ops.numpy_ops import reshape
@@ -19,11 +20,10 @@ from tensorflow.python.ops.numpy_ops import reshape
 
 
 inputs = tf.keras.Input(shape=(2))
-x = layers.Dense(256, activation = "sigmoid")(inputs)
+x = layers.Dense(64, activation = "sigmoid")(inputs)
 output = layers.Dense(1)(x)
 
 ode_solver = tf.keras.Model(inputs, output, name="ode_solver")
-
 # ODE parameters
 # g = 10
 # l = 10
@@ -33,19 +33,32 @@ ode_solver = tf.keras.Model(inputs, output, name="ode_solver")
 # Sampling parameters
 T = 3
 # sampling_stages = 10**4
-sample_size = 2**10
+sample_size = 2**12 # not used since using non stochastic methods
 
 #Training parameters
-batch_size = 2**4
-epochs = 21
+batch_size = 50
+epochs = 31
 epoch_size = 100
 
-def sampler(size):
-    out = np.zeros((size,2))
-    out[:,0] = np.random.uniform(low=0., high=T,  size=(size)).astype(np.float32)
-    out[:,1] = np.random.uniform(low=0., high=1., size=(size)).astype(np.float32)
-    return out
+ts = np.linspace(0,1,20)
+x = np.linspace(0,1,20)
+xs, ts = np.meshgrid(x, ts)
+# print(f"{xs.shape=}\,{ts.shape=}")
+xts = np.stack([xs.flatten(), ts.flatten()], axis = -1)
+# print(f"{xts.shape=}")
 
+init_lr = 1e-0
+decay_rate = 0.7
+weight_decay = 1e-4
+
+optimizer = tf.keras.optimizers.Adam(init_lr)
+
+def sampler(size):
+    # out = np.zeros((size,2))
+    # out[:,0] = np.random.uniform(low=0., high=T,  size=(size)).astype(np.float32)
+    # out[:,1] = np.random.uniform(low=0., high=1., size=(size)).astype(np.float32)
+    # return out
+    return xts
 t_interior = sampler(sample_size) 
 t_interior_tf = tf.Variable(t_interior, trainable=False)
 
@@ -108,8 +121,6 @@ def loss(model):
     # print(f"{L1=}")
     return L1
 
-optimizer = tf.keras.optimizers.Adam(0.1)
-
 def train_step(model):
   @tf.function
   def inner_func():
@@ -120,6 +131,7 @@ def train_step(model):
     # Use the gradient tape to automatically retrieve
     # the gradients of the trainable variables with respect to the loss.
     grads = tape.gradient(L_ode, model.trainable_variables)
+    grads = [grad + weight_decay * weight for grad, weight in zip(grads, model.weights)]
     
     # Run one step of gradient descent by updating
     # the value of the variables to minimize the loss.
@@ -135,7 +147,7 @@ def train_model(model):
     
     start = time.time()
     for s in range(1,epochs):
-        step_size = 1e-1*0.7**s
+        step_size = init_lr*decay_rate**s
         optimizer.lr.assign(step_size)     
         for _ in tqdm(range(epoch_size)):
             mean_loss = []
@@ -202,7 +214,7 @@ title = axs[0].set_title('training batches: 0, mean squared error: 0, maximum ab
 axs[0].grid()
 
 axs[1].set_ylim(-8.1,2)
-axs[1].set_xlim(0,1000)
+axs[1].set_xlim(0,(epochs-1)*epoch_size)
 axs[1].grid()
 
 loss_line, = axs[1].plot(np.log10(losses), label = 'Training loss')
