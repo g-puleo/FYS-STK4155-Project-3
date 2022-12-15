@@ -171,6 +171,7 @@ class eigSolverNN():
 		
 		self.info()
 
+		print(f"\n\n Training model with SGD using {Nbatches} batches and {Nepochs} epochs.")
 		try:
 			self.losses = []
 			self.eigvals = []
