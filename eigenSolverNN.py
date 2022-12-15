@@ -26,32 +26,32 @@ class eigSolverNN():
 
 	Attributes:
 
-		model: 	tensorflow model which is used to fit the solution to the ODE
-		A: 		symmetric matrix to diagonalize
-		x0: 	initial condition of ODE
-		optimizer: tf.keras.optimizers.Optimizer which does SGD
-		t_grid:	the grid of time steps where solution is wanted
-		n_dim: 	A.shape[0] (dimension of space)
-		Id: 	Identity matrix 
+		model: 			Tensorflow model which is used to fit the solution to the ODE
+		A: 				ymmetric matrix to diagonalize
+		x0: 			initial condition of ODE
+		optimizer: 		tf.keras.optimizers.Optimizer which does SGD
+		t_grid:			the grid of time steps where solution is wanted
+		n_dim: 			A.shape[0] (dimension of space)
+		Id: 			Identity matrix 
 
 		The following attributes are availablle after calling the method train_model()
 
-		loss:	sequence of losses computed after every epoch of training
-		eigvecs: sequence of vectors, which should approach an eigenvector of the matrix A as we train more
-		eigvals: (supposed) eigenvalues corresponding to the eigvecs . 
+		loss:			sequence of losses computed after every epoch of training
+		eigvecs: 		sequence of vectors, which should approach an eigenvector of the matrix A as we train more
+		eigvals: 		(supposed) eigenvalues corresponding to the eigvecs . 
 	
 	Methods: 
 
-		f:		function f defined in the paper 
-		x_tilde: evaluate trial solution at time step or series of time steps
-		loss:	compute loss function at given batch
-		gradient_step: perform one GD step on a given batch
-		train_model: trains the model performing SGD
-		compute_eigs: computes current estimate of eigenvalue and eigenvector
+		f:				function f defined in the paper 
+		x_tilde: 		evaluate trial solution at time step or series of time steps
+		loss:			compute loss function at given batch
+		gradient_step: 	perform one GD step on a given batch
+		train_model: 	trains the model performing SGD
+		compute_eigs: 	computes current estimate of eigenvalue and eigenvector
 
 		'''
 	
-	def __init__(self, A, x0, model=model, optimizer=tf.keras.optimizers.Adam(), t_grid = t_grid, N_tr=50, gamma=1):
+	def __init__(self, A, x0, model=model, optimizer=tf.keras.optimizers.Adam(), t_grid = t_grid):
 		'''standard constructor of eigSolver
 		Args:
 			A: 			tf.Tensor() of shape (n,n). It's the matrix to be diagonalized. Needs to be symmetric for the result to be meaningful.
@@ -62,8 +62,6 @@ class eigSolverNN():
 			optimizer: 	instance of any subclass of tf.keras.optimizers.Optimizer(). Defaults to Adam.
 			t_grid: 	whole grid of time steps where the solution is wanted and where the net will be trained.
 						Defaults to a sequence of 2000 time steps evenly spaced in the interval [0,1].
-			N_tr:		Number of initial steps where having low derivative gets an extra penalty. 	
-			gamma:		Coefficient for penalty on low derivative during transient
 			'''
 		self.model = model
 		self.A = A 
@@ -77,8 +75,6 @@ class eigSolverNN():
 		
 		self.x0 = x0
 
-		self.transient = N_tr
-		self.gamma = gamma
 
 
 	#define function  f which enters ode
@@ -172,16 +168,19 @@ class eigSolverNN():
 			args: Nepochs: number of epochs for training
 				  Nbatches: number of batches 
 			returns: None'''
+		
+		self.info()
 
 		try:
 			self.losses = []
 			self.eigvals = []
 			self.eigvecs = []
 			temp_grid = self.t_grid
-			temp_grid = tf.random.shuffle(temp_grid)
 
 			for epoch in tqdm(range(Nepochs)):
 				#shuffle dataset at every epoch
+				temp_grid = tf.random.shuffle(temp_grid)
+
 				for ii in range(Nbatches):
 					t_current = temp_grid[ii::Nbatches,:]
 
@@ -224,3 +223,17 @@ class eigSolverNN():
 		eigval = (eigvec @ self.A @ tf.transpose(eigvec) )/(tf.norm(eigvec)**2) 
 
 		return eigval, eigvec
+
+
+	def info ( self ):
+		'''prints out information about current model'''
+		print( "------ Current settings of model: ------\n",
+		f"Model:\n{self.model}",
+		f"Layers:\n{self.model.layers}",
+		f"Number of neurons in hidden layer: {self.model.layers[1].input_shape[1]}",
+		f"Optimizer: {self.optimizer._name}",
+		f"Learning rate: {self.optimizer.lr}",
+		f"Time grid has shape {self.t_grid.shape} and goes from {self.t_grid[0]} to {self.t_grid[-1]}",
+		f"Starting from initial condition: {self.x0}", sep="\n")
+
+		return
