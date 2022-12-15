@@ -12,9 +12,9 @@ def normalized_proj(vector1, vector2):
 def create_orthogonal(vectors_array):
     """
     Creates a random vector and substracts all components parallel to
-    the vectors in vectors_array. These vectors belong to R^n . 
+    the vectors in vectors_array. These vectors belong to R^n .
 
-    returns: 
+    returns:
     orthogonal_vector: vector such that the dot product
          orthogonal_vector * vectors_array[ii] = 0 for all ii.
     Note that this will be the 0 vector if there are more than n vectors in vectors_array .
@@ -38,7 +38,7 @@ def check_eig(eigval, eigvec, A):
     A = A.numpy()
 
     #lambdavec should have components all equal to eigval
-    lambdavec = (A@eigvec)/eigvec
+    lambdavec = (A@eigvec.T)/eigvec.T
     #dividing by eigval should give a vector of ones
     ones_vec = lambdavec/eigval
     #check that this vector is close enough to np.ones()
@@ -54,35 +54,38 @@ def findEigenvectors(A):
     '''
     n = A.shape[0]
 
-    eigenvectors = tf.zeros((n,n))
-    eigenvalues = tf.zeros(n)
+    eigenvectors = np.zeros((n,n))
+    eigenvalues = np.zeros(n)
 
-    starting_point = tf.random.normal(n)
+    starting_point = tf.random.normal([n], dtype='float64')
 
     #initialize instance of solver
-    Nepochs = 10000
-    Nbatches = 10 
+    Nepochs = 1000
+    Nbatches = 10
 
     for i in range(n):
         print(f"### FINDING EIGENVECTOR NR.{i} ###\n")
         solver = esnn.eigSolverNN(A, starting_point)
+        solver.optimizer.lr.assign(0.0175)
         solver.train_model(Nepochs, Nbatches)
-        eigenvalue, eigvector = esnn.compute_eig()
+        eigenvalue, eigvector = solver.compute_eig()
 
         #SHOULD CHECK THAT WHAT WE HAVE GOTTEN SO FAR *IS* AN EIGENVECTOR.
         #OTHERWISE, TRAINING AGAIN WOULD NOT MAKE SENSE
         check_eig(eigenvalue, eigvector, A)
 
 
-        eigenvectors[i, :] = eigenvector
+        eigenvectors[i] = eigvector
         eigenvalues[i] = eigenvalue
         starting_point = create_orthogonal(eigenvectors[:i+1, :])
 
     return eigenvectors, eigenvalues
 
 if __name__ == '__main__':
-    v1 = np.array([1, 0, 0])
-    v2 = np.array([0, 1, 0])
-    vectors = np.array([v1, v2])
-    u2 = create_orthogonal(vectors)
-    print(np.dot(v1, u2), np.dot(v2, u2), u2)
+    Q = tf.random.normal([6,6], dtype = 'float64')
+    A = 0.5*(Q+tf.transpose(Q))
+    eigenvectors, eigenvalues = findEigenvectors(A)
+    print(eigenvalues)
+    A = A.numpy()
+    [E, V] = np.linalg.eigh(A)
+    print(E)

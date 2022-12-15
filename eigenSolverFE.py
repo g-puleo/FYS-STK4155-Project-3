@@ -1,7 +1,7 @@
 #use forward euler to solve ODE to get eigvalues of A
 import numpy as np
 
-def f(x):
+def f(x, A, n):
 	operator = (x.T @ x) * A + (1- x.T@A@x )*np.eye(n)
 	return operator @ x
 
@@ -22,10 +22,10 @@ def forward_euler_sol(A, x0, Tmax=1, Nsteps=2000):
 	x = np.empty((n,Nsteps))
 	#np.random.shuffle(x)
 	t, dt = np.linspace(0,1, Nsteps, retstep=True)
-	x[0] = x
+	x[:, 0] = x0
 	for i in range(Nsteps-1):
 		xlast = x[:,i:i+1]
-		x[:,i+1:i+2] = xlast + dt*(f(xlast)-xlast)
-		
+		x[:,i+1:i+2] = xlast + dt*(f(xlast, A, n)-xlast)
+
 
 	return t, x
