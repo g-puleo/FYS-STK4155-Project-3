@@ -113,12 +113,44 @@ def Many_Random_Points(number_of_points, A, learning_rate, tolerance=0.1, Nepoch
 
     return unique_eigenvalues
 
+def Search_Until_Find(A):
+    '''
+    Find all eigenvectors of matrix A, using neural net.
+
+    '''
+    n = A.shape[0]
+
+    eigenvectors = []
+    eigenvalues = []
+
+    starting_point = tf.random.normal([n], dtype='float64')
+
+    #initialize instance of solver
+    Nepochs = 50000
+    Nbatches = 4
+
+    while len(eigenvalues) < 6:
+        print(f"### FINDING EIGENVECTOR NR.{len(eigenvalues)} ###\n")
+        solver = esnn.eigSolverNN(A, starting_point)
+        solver.train_model(Nepochs, Nbatches)
+        eigenvalue, eigvector = solver.compute_eig()
+
+        #SHOULD CHECK THAT WHAT WE HAVE GOTTEN SO FAR *IS* AN EIGENVECTOR.
+        #OTHERWISE, TRAINING AGAIN WOULD NOT MAKE SENSE
+        if check_eig(eigenvalue, eigvector, A):
+            if not np.any(abs(np.array(eigenvalues)-eigenvalue)<0.01):
+                eigenvalues.append(eigenvalue)
+                eigenvectors.append(eigvector)
+
+        starting_point = create_orthogonal(eigenvectors[:i+1, :])
+
+    return eigenvectors, eigenvalues
+
 if __name__ == '__main__':
-    Q = tf.random.normal([6,6], dtype = 'float64')
     A = np.load('A.npy')
     A = tf.convert_to_tensor(A)
     #eigenvalues = Many_Random_Points(15, A, 0.0175, tolerance=1e-7, Nepochs=40000)
-    eigenvectors, eigenvalues = findEigenvectors(A)
+    eigenvectors, eigenvalues = Search_Until_Find(A)
     print(eigenvalues)
     A = A.numpy()
     [E, V] = np.linalg.eigh(A)
