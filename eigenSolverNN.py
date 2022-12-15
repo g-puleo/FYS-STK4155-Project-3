@@ -7,16 +7,9 @@ tf.keras.backend.set_floatx('float64') #set default precision to double
 
 #DEFINITION OF DEFAULT ARGS TO THE eigSolver.__init__ function.
 
-#DEFINE DEFAULT NEURAL NET MODEL
-N_hidden = 100
-inputs = tf.keras.Input(shape=(1), name="time")
-l1 = tf.keras.layers.Dense(N_hidden, activation="sigmoid")
-out = tf.keras.layers.Dense(6, activation='linear')
-model = tf.keras.Sequential( [inputs, l1, out])
 
 #define default time grid (DATASET)
 #note well: final time T=1 is chosen after looking at Forward Euler evolution
-t_grid = tf.linspace(0,1, 100)[:,tf.newaxis]
 
 class eigSolverNN():
 	'''class for diagonalization of a symmetric matrix A, by training of a neural network. 
@@ -27,7 +20,7 @@ class eigSolverNN():
 	Attributes:
 
 		model: 			Tensorflow model which is used to fit the solution to the ODE
-		A: 				ymmetric matrix to diagonalize
+		A: 				Symmetric matrix to diagonalize
 		x0: 			initial condition of ODE
 		optimizer: 		tf.keras.optimizers.Optimizer which does SGD
 		t_grid:			the grid of time steps where solution is wanted
@@ -51,18 +44,32 @@ class eigSolverNN():
 
 		'''
 	
-	def __init__(self, A, x0, model=model, optimizer=tf.keras.optimizers.Adam(), t_grid = t_grid):
-		'''standard constructor of eigSolver
+	def __init__(self, A, x0, optimizer=tf.keras.optimizers.Adam(), Nhid=100, Tmax=1, N_tpoints=100):
+		'''standard constructor of eigSolver. self.model is initialized as a tf.keras.Sequential object using 1 hidden layer with sigmoid activation,
+		and a linear output layer.
+		
 		Args:
 			A: 			tf.Tensor() of shape (n,n). It's the matrix to be diagonalized. Needs to be symmetric for the result to be meaningful.
 						Make sure to use 'float64' as dtype.
 			x0: 		initial condition of the ode, as tf.Tensor of shape (n,1),
-			model: 		instance of tf.Model()( neural network model). Defaults to an instance of tf.Sequential, 
-						with a hidden layer made of 100 neurons.
 			optimizer: 	instance of any subclass of tf.keras.optimizers.Optimizer(). Defaults to Adam.
 			t_grid: 	whole grid of time steps where the solution is wanted and where the net will be trained.
 						Defaults to a sequence of 2000 time steps evenly spaced in the interval [0,1].
+			Nhid:		Number of neurons in hidden layer, defaults to 100.
+			Tmax:		Largest time instant where the net is trained. Defaults to 1
+			N_tpoints:	Number of time steps in the grid. Default: 100.
 			'''
+		
+		#DEFINE DEFAULT NEURAL NET MODEL
+		
+		inputs = tf.keras.Input(shape=(1), name="time")
+		l1 = tf.keras.layers.Dense(Nhid, activation="sigmoid")
+		out = tf.keras.layers.Dense(6, activation='linear')
+		model = tf.keras.Sequential( [inputs, l1, out])
+
+		#DEFINE DEFAULT TIME GRID
+		t_grid = tf.linspace(0,Tmax, N_tpoints)[:,tf.newaxis]
+
 		self.model = model
 		self.A = A 
 		#track dimension of space
