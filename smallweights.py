@@ -3,6 +3,14 @@ import numpy as np
 import tensorflow as tf
 import warnings
 
+initializer = tf.keras.initializers.RandomNormal(mean=0., stddev=0.01)
+
+N_hidden = 100
+inputs = tf.keras.Input(shape=(1), name="time")
+l1 = tf.keras.layers.Dense(N_hidden, activation="sigmoid", kernel_initializer=initializer)
+out = tf.keras.layers.Dense(6, activation='linear', kernel_initializer=initializer)
+model = tf.keras.Sequential( [inputs, l1, out])
+
 def normalized_proj(vector1, vector2):
     '''computes the projection of vector1 along the direction specified by vector2.
        With dirac's notation this is equivalent to ( <v2|v1>/<v2|v2> ) |v2>.
@@ -27,7 +35,7 @@ def create_orthogonal(vectors_array):
     for vector in vectors_array:
         orthogonal_vector -= normalized_proj(orthogonal_vector, vector)
 
-    return orthogonal_vector/np.linalg.norm(orthogonal_vector)
+    return orthogonal_vector
 
 def check_eig(eigval, eigvec, A):
     '''check that eigvec is an eigenvector of A with eigenvalue eigval.
@@ -42,14 +50,14 @@ def check_eig(eigval, eigvec, A):
     lambdavec = (A@eigvec.T)/eigvec.T
     #dividing by eigval should give a vector of ones
     ones_vec = lambdavec/eigval
-    print(ones_vec)
     #check that this vector is close enough to np.ones()
-    A = np.allclose(ones_vec, np.ones(ones_vec.shape), rtol=0.2)
+    A = np.allclose(ones_vec, np.ones(ones_vec.shape), rtol=1e-2)
     if not A:
         warnings.warn(f"eigenvector ({eigvec}) might not be an eigenvector of A.")
-    return A
 
-def findEigenvectors(A):
+
+
+def findEigenvectors(A, model):
     '''
     Find all eigenvectors of matrix A, using neural net.
 
@@ -62,13 +70,14 @@ def findEigenvectors(A):
     starting_point = tf.random.normal([n], dtype='float64')
 
     #initialize instance of solver
-    Nepochs = 50000
-    Nbatches = 4
+    Nepochs = 1000
+    Nbatches = 1
 
     for i in range(n):
         print(f"### FINDING EIGENVECTOR NR.{i} ###\n")
-        solver = esnn.eigSolverNN(A, starting_point)
-        solver.train_model(Nepochs, Nbatches)
+        solver = esnn.eigSolverNN(A, starting_point, model=model)
+        solver.optimizer.lr.assign(0.0175)
+        solver.train_model(Nepochs, Nbatches, tolerance=1e-2)
         eigenvalue, eigvector = solver.compute_eig()
 
         #SHOULD CHECK THAT WHAT WE HAVE GOTTEN SO FAR *IS* AN EIGENVECTOR.
@@ -82,44 +91,11 @@ def findEigenvectors(A):
 
     return eigenvectors, eigenvalues
 
-def Many_Random_Points(number_of_points, A, learning_rate, tolerance=0.1, Nepochs=int(1e5), Nbatches=4):
-    dimension = A.shape[0]
-    class_instances = []
-
-    eigenvalues = []
-    eigenvectors =[]
-
-    unique_eigenvalues = []
-    unique_eigenvectors = []
-
-    for _ in range(number_of_points):
-        x0 = tf.random.normal([dimension], dtype='float64')
-        neural_net_solver = esnn.eigSolverNN(A, x0)
-        neural_net_solver.optimizer.lr.assign(learning_rate)
-        class_instances.append(
-            neural_net_solver
-        )
-
-    for i, neural_net_solver in enumerate(class_instances):
-        neural_net_solver.train_model(Nepochs, Nbatches, tolerance=tolerance)
-        eigval, eigvec = neural_net_solver.compute_eig()
-        if check_eig(eigval, eigvec, A):
-            eigenvalues[i], eigenvectors[i] = eigval, eigvec
-
-    for i, eigval in enumerate(eigenvalues):
-        condition = abs((np.array(unique_eigenvalues)-eigval))<(0.2*eigval)
-        if not np.any(condition):
-            unique_eigenvalues.append(eigval)
-
-    return unique_eigenvalues
-
-if __name__ == '__main__':
-    Q = tf.random.normal([6,6], dtype = 'float64')
-    A = np.load('A.npy')
-    A = tf.convert_to_tensor(A)
-    #eigenvalues = Many_Random_Points(15, A, 0.0175, tolerance=1e-7, Nepochs=40000)
-    eigenvectors, eigenvalues = findEigenvectors(A)
-    print(eigenvalues)
-    A = A.numpy()
-    [E, V] = np.linalg.eigh(A)
-    print(E)
+Q = tf.random.normal([6,6], dtype = 'float64')
+A = 0.5*(Q+tf.transpose(Q))
+#eigenvalues = Many_Random_Points(100, A, 0.0175)
+eigenvectors, eigenvalues = findEigenvectors(A, model)
+print(eigenvalues)
+A = A.numpy()
+[E, V] = np.linalg.eigh(A)
+print(E)

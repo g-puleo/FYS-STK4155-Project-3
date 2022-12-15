@@ -8,7 +8,7 @@ tf.keras.backend.set_floatx('float64') #set default precision to double
 #DEFINITION OF DEFAULT ARGS TO THE eigSolver.__init__ function.
 
 #DEFINE DEFAULT NEURAL NET MODEL
-N_hidden = 1000
+N_hidden = 100
 inputs = tf.keras.Input(shape=(1), name="time")
 l1 = tf.keras.layers.Dense(N_hidden, activation="sigmoid")
 out = tf.keras.layers.Dense(6, activation='linear')
@@ -16,7 +16,7 @@ model = tf.keras.Sequential( [inputs, l1, out])
 
 #define default time grid (DATASET)
 #note well: final time T=1 is chosen after looking at Forward Euler evolution
-t_grid = tf.linspace(0,1, 2000)[:,tf.newaxis]
+t_grid = tf.linspace(0, 1, 100)[:,tf.newaxis]
 
 class eigSolverNN():
 	'''class for diagonalization of a symmetric matrix A, by training of a neural network.
@@ -25,43 +25,41 @@ class eigSolverNN():
 	The solution of the ODE is proven to converge to an eigenvector of the matrix A.
 
 	Attributes:
-
-		model: 	tensorflow model which is used to fit the solution to the ODE
-		A: 		symmetric matrix to diagonalize
-		x0: 	initial condition of ODE
-		optimizer: tf.keras.optimizers.Optimizer which does SGD
-		t_grid:	the grid of time steps where solution is wanted
-		n_dim: 	A.shape[0] (dimension of space)
-		Id: 	Identity matrix
+		model: 			Tensorflow model which is used to fit the solution to the ODE
+		A: 				ymmetric matrix to diagonalize
+		x0: 			initial condition of ODE
+		optimizer: 		tf.keras.optimizers.Optimizer which does SGD
+		t_grid:			the grid of time steps where solution is wanted
+		n_dim: 			A.shape[0] (dimension of space)
+		Id: 			Identity matrix
 
 		The following attributes are availablle after calling the method train_model()
 
-		loss:	sequence of losses computed after every epoch of training
-		eigvecs: sequence of vectors, which should approach an eigenvector of the matrix A as we train more
-		eigvals: (supposed) eigenvalues corresponding to the eigvecs .
+		loss:			sequence of losses computed after every epoch of training
+		eigvecs: 		sequence of vectors, which should approach an eigenvector of the matrix A as we train more
+		eigvals: 		(supposed) eigenvalues corresponding to the eigvecs .
 
 	Methods:
 
-		f:		function f defined in the paper
-		x_tilde: evaluate trial solution at time step or series of time steps
-		loss:	compute loss function at given batch
-		gradient_step: perform one GD step on a given batch
-		train_model: trains the model performing SGD
-		compute_eigs: computes current estimate of eigenvalue and eigenvector
-
+		f:				function f defined in the paper
+		x_tilde: 		evaluate trial solution at time step or series of time steps
+		loss:			compute loss function at given batch
+		gradient_step: 	perform one GD step on a given batch
+		train_model: 	trains the model performing SGD
+		compute_eigs: 	computes current estimate of eigenvalue and eigenvector
 		'''
 
 	def __init__(self, A, x0, model=model, optimizer=tf.keras.optimizers.Adam(), t_grid = t_grid):
 		'''standard constructor of eigSolver
 		Args:
-			A: tf.Tensor() of shape (n,n). It's the matrix to be diagonalized. Needs to be symmetric for the result to be meaningful.
-				Make sure to use 'float64' as dtype.
-			x0: initial condition of the ode, as tf.Tensor of shape (n,1),
-			model: instance of tf.Model()( neural network model). Defaults to an instance of tf.Sequential,
-				with a hidden layer made of 100 neurons.
-			optimizer: instance of any subclass of tf.keras.optimizers.Optimizer(). Defaults to Adam.
-			t_grid: whole grid of time steps where the solution is wanted and where the net will be trained.
-					Defaults to a sequence of 2000 time steps evenly spaced in the interval [0,1]
+			A: 			tf.Tensor() of shape (n,n). It's the matrix to be diagonalized. Needs to be symmetric for the result to be meaningful.
+						Make sure to use 'float64' as dtype.
+			x0: 		initial condition of the ode, as tf.Tensor of shape (n,1),
+			model: 		instance of tf.Model()( neural network model). Defaults to an instance of tf.Sequential,
+						with a hidden layer made of 100 neurons.
+			optimizer: 	instance of any subclass of tf.keras.optimizers.Optimizer(). Defaults to Adam.
+			t_grid: 	whole grid of time steps where the solution is wanted and where the net will be trained.
+						Defaults to a sequence of 2000 time steps evenly spaced in the interval [0,1].
 			'''
 		self.model = model
 		self.A = A
@@ -134,6 +132,7 @@ class eigSolverNN():
 		x_err = x_t + x - self.f(x)
 		L1 = tf.reduce_mean(tf.square(x_err))
 
+
 		return L1
 
 	@tf.function
@@ -162,27 +161,44 @@ class eigSolverNN():
 		return L
 
 
-	def train_model(self,Nepochs, Nbatches):
+	def train_model(self, Nepochs, Nbatches, tolerance=1e-3):
 		'''perform SGD using self.t_grid as dataset.
 			args: Nepochs: number of epochs for training
 				  Nbatches: number of batches
 			returns: None'''
 
+		self.info()
+
+		print(f"\n\n Training model with SGD using {Nbatches} batches and {Nepochs} epochs.")
 		try:
 			self.losses = []
 			self.eigvals = []
 			self.eigvecs = []
 			temp_grid = self.t_grid
 
-			for epoch in tqdm(range(Nepochs)):
-				#shuffle dataset at every epoch
-				temp_grid = tf.random.shuffle(temp_grid)
-				for ii in range(Nbatches):
-					t_current = temp_grid[ii::Nbatches,:]
+			if Nbatches==1:
 
-					#update self.model using gradient_step
+				for epoch in tqdm(range(Nepochs)):
+					#shuffle dataset at every epoch
+					temp_grid = tf.random.shuffle(temp_grid)
 					curr_loss = self.gradient_step(t_current)
 
+					if curr_loss < tolerance:
+						break
+			else:
+
+				for epoch in tqdm(range(Nepochs)):
+					#shuffle dataset at every epoch
+					temp_grid = tf.random.shuffle(temp_grid)
+
+					for ii in range(Nbatches):
+						t_current = temp_grid[ii::Nbatches,:]
+
+						#update self.model using gradient_step
+						curr_loss = self.gradient_step(t_current)
+
+					if curr_loss < tolerance:
+						break
 				#store loss
 				self.losses.append(curr_loss)
 
@@ -213,9 +229,24 @@ class eigSolverNN():
 			eigvec: sequence of vectors, which should approach the corresponding eigenvector.'''
 
 		#store current prediction for eigenvector
+
 		eigvec = self.x_tilde(self.t_grid[-1])
 		#and the corresponding eigenvalue. Note that eigvec.shape = (1,6) and not (6,1)
 		#so that we need to transpose it on the RHS of A
 		eigval = (eigvec @ self.A @ tf.transpose(eigvec) )/(tf.norm(eigvec)**2)
 
 		return eigval, eigvec
+
+
+	def info ( self ):
+		'''prints out information about current model'''
+		print( "------ Current settings of model: ------\n",
+		f"Model:\n{self.model}",
+		f"Layers:\n{self.model.layers}",
+		f"Number of neurons in hidden layer: {self.model.layers[1].input_shape[1]}",
+		f"Optimizer: {self.optimizer._name}",
+		f"Learning rate: {self.optimizer.lr}",
+		f"Time grid has shape {self.t_grid.shape} and goes from {self.t_grid[0]} to {self.t_grid[-1]}",
+		f"Starting from initial condition: {self.x0}", sep="\n")
+
+		return
