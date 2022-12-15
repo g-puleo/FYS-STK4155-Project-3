@@ -169,7 +169,7 @@ class eigSolverNN():
 		return L
 
 
-	def train_model(self, Nepochs, Nbatches, tolerance=1e-3):
+	def train_model(self, Nepochs, Nbatches, tolerance=1e-8):
 		'''perform SGD using self.t_grid as dataset.
 			args: Nepochs: number of epochs for training
 				  Nbatches: number of batches
