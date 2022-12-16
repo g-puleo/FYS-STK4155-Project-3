@@ -20,8 +20,10 @@ from tensorflow.python.ops.numpy_ops import reshape
 
 
 inputs = tf.keras.Input(shape=(2))
-x = layers.Dense(64, activation = "sigmoid")(inputs)
+x = layers.Dense(8, activation = "sigmoid")(inputs)
+# x2 = layers.Dense(25, activation = "sigmoid")(x)
 output = layers.Dense(1)(x)
+# output = layers.Dense(1)(x2)
 
 ode_solver = tf.keras.Model(inputs, output, name="ode_solver")
 # ODE parameters
@@ -31,37 +33,65 @@ ode_solver = tf.keras.Model(inputs, output, name="ode_solver")
 
 
 # Sampling parameters
-T = 3
+T = 1
 # sampling_stages = 10**4
-sample_size = 2**12 # not used since using non stochastic methods
+sample_size = 400 # not used when using non stochastic methods
 
 #Training parameters
 batch_size = 50
-epochs = 31
+epochs = 100
 epoch_size = 100
 
-ts = np.linspace(0,1,20)
+ts = np.linspace(0,T,20)
 x = np.linspace(0,1,20)
 xs, ts = np.meshgrid(x, ts)
 # print(f"{xs.shape=}\,{ts.shape=}")
 xts = np.stack([xs.flatten(), ts.flatten()], axis = -1)
 # print(f"{xts.shape=}")
 
-init_lr = 1e-0
-decay_rate = 0.7
-weight_decay = 1e-4
+init_lr = 1e-1
+decay_rate = (1/7)**0.01
+weight_decay = 1e-5
+def weight_decay_func(s):
+    # return 10**(-5 - 1*(s/epochs))
+    return 0
 
-optimizer = tf.keras.optimizers.Adam(init_lr)
+# optimizer = tf.keras.optimizers.Adam(init_lr)
+# optimizer = tf.keras.optimizers.SGD(init_lr)
+optimizer = tf.keras.optimizers.Adagrad(init_lr)
 
-def sampler(size):
-    # out = np.zeros((size,2))
-    # out[:,0] = np.random.uniform(low=0., high=T,  size=(size)).astype(np.float32)
-    # out[:,1] = np.random.uniform(low=0., high=1., size=(size)).astype(np.float32)
-    # return out
-    return xts
-t_interior = sampler(sample_size) 
+def sampler(size, ep):
+    out = np.zeros((size,2))
+    # out[:,0] = np.random.uniform(low=0., high=(ep/epochs)*T,  size=(size)).astype(np.float32)
+    out[:,0] = np.random.uniform(low=0., high=T,  size=(size)).astype(np.float32)
+    out[:,1] = np.random.uniform(low=0., high=1., size=(size)).astype(np.float32)
+    return out
+    # return xts
+    
+# t_interior = sampler(sample_size, 1) 
+t_interior = xts 
 t_interior_tf = tf.Variable(t_interior, trainable=False)
 
+"""
+def loss(model):
+    # compute function value and derivatives at current sampled points
+    with tf.GradientTape(persistent=True) as tape:
+        tape.watch(t_interior_tf)
+        NN = model(t_interior_tf)
+        NN = tf.cast(NN, np.float64)
+        t = t_interior_tf[:,0]
+        x = t_interior_tf[:,1]
+        u = (1-t)*tf.sin(x*np.pi) + t*x*(1-x)*NN
+        du = tape.gradient(u,t_interior_tf)
+
+    ddu = tape.gradient(du,t_interior_tf)
+    theta_err = ddu[:,1] - du[:,0]
+    
+    L1 = tf.reduce_mean(tf.square(theta_err))
+    
+    return L1
+
+"""
 def loss(model):
     # compute function value and derivatives at current sampled points
     with tf.GradientTape(persistent=True) as tape:
@@ -120,7 +150,7 @@ def loss(model):
     L1 = tf.reduce_mean(tf.square(theta_err))
     # print(f"{L1=}")
     return L1
-
+#"""
 def train_step(model):
   @tf.function
   def inner_func():
@@ -146,16 +176,20 @@ def train_model(model):
     train_step_function = train_step(model)
     
     start = time.time()
-    for s in range(1,epochs):
+    for s in range(1,epochs+1):
         step_size = init_lr*decay_rate**s
-        optimizer.lr.assign(step_size)     
+        optimizer.lr.assign(step_size)    
+        weight_decay = weight_decay_func(s) 
         for _ in tqdm(range(epoch_size)):
             mean_loss = []
-            t_interior = sampler(sample_size) 
-            t_interior_tf.assign(t_interior)
+            # t_interior = xts
+            # t_interior_tf.assign(t_interior)
             
             for _ in range(batch_size): 
+                t_interior = sampler(sample_size, s) 
+                t_interior_tf.assign(t_interior)
                 current_loss, grads = train_step_function()
+                # print(f"{current_loss.numpy()=}")
                 mean_loss.append(current_loss)
 
             mean_loss = np.array(mean_loss).mean()
@@ -183,13 +217,15 @@ def train_model(model):
 
 losses = train_model(ode_solver)
 
+ode_solver.save("model.H5")
+
 def model(xt):
     return (1-xt[:,1])*np.sin(xt[:,0]*np.pi) + xt[:,0]*(1-xt[:,0])*xt[:,1] * ode_solver(tf.Variable(xt))[:,0]
 
 def sol(xt):
     return np.exp(-xt[:,1]*np.pi**2)*np.sin(xt[:,0]*np.pi)
 
-ts = np.linspace(0,1,100)
+ts = np.linspace(0,T,100)
 x = np.linspace(0,1,100)
 xs, ts = np.meshgrid(x, ts)
 # print(f"{xs.shape=}\,{ts.shape=}")
@@ -213,8 +249,8 @@ axs[0].legend(loc='upper right')
 title = axs[0].set_title('training batches: 0, mean squared error: 0, maximum absolute error: 0')
 axs[0].grid()
 
-axs[1].set_ylim(-8.1,2)
-axs[1].set_xlim(0,(epochs-1)*epoch_size)
+# axs[1].set_ylim(-8.1,2)
+# axs[1].set_xlim(0,(epochs-1)*epoch_size)
 axs[1].grid()
 
 loss_line, = axs[1].plot(np.log10(losses), label = 'Training loss')
