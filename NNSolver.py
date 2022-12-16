@@ -24,8 +24,8 @@ from tensorflow.python.ops.numpy_ops import reshape
 inputs = tf.keras.Input(shape=(2))
 x = layers.Dense(50, activation = "sigmoid")(inputs)
 x2 = layers.Dense(20, activation = "sigmoid")(x)
+# output = layers.Dense(1)(x)
 output = layers.Dense(1)(x2)
-# output = layers.Dense(1)(x2)
 
 ode_solver = tf.keras.Model(inputs, output, name="ode_solver")
 # ODE parameters
@@ -75,26 +75,32 @@ def sampler(size, ep):
 t_interior = xts
 t_interior_tf = tf.Variable(t_interior, trainable=False)
 print(ode_solver(t_interior_tf).shape)
-"""
-def loss(model):
+#"""
+def loss2(model):
     # compute function value and derivatives at current sampled points
     with tf.GradientTape(persistent=True) as tape:
         tape.watch(t_interior_tf)
         NN = model(t_interior_tf)
-        NN = tf.cast(NN, np.float64)
-        t = t_interior_tf[:,0]
-        x = t_interior_tf[:,1]
+        NN = tf.cast(NN[:,0], np.float64)
+        t = t_interior_tf[:,1]
+        x = t_interior_tf[:,0]
         u = (1-t)*tf.sin(x*np.pi) + t*x*(1-x)*NN
         du = tape.gradient(u,t_interior_tf)
 
     ddu = tape.gradient(du,t_interior_tf)
-    theta_err = ddu[:,1] - du[:,0]
-
+    theta_err = ddu[:,0] - du[:,1]
+    # print(f"{NN.shape=}")
+    # print(f"{t.shape=}")
+    # print(f"{x.shape=}")
+    # print(f"{u.shape=}")
+    # print(f"{du.shape=}")
+    # print(f"{ddu.shape=}")
+    # print(f"{theta_err.shape=}")
     L1 = tf.reduce_mean(tf.square(theta_err))
 
     return L1
 
-"""
+#"""
 def loss(model):
     # compute function value and derivatives at current sampled points
     with tf.GradientTape(persistent=True) as tape:
@@ -121,8 +127,8 @@ def loss(model):
     # print(f"{theta_tt=}")
     # print(f"{t_interior_tf[:,0]=}")
     # print(f"{t_interior_tf[:,1]=}")
-    t = t_interior_tf[:,0, np.newaxis]
-    x = t_interior_tf[:,1, np.newaxis]
+    t = t_interior_tf[:,1, np.newaxis]
+    x = t_interior_tf[:,0, np.newaxis]
     N = tf.cast(theta, np.float64)#[:,0]
 
     # e1 = tf.sin(np.pi*x)
@@ -141,8 +147,8 @@ def loss(model):
     # print(f"{e5=}")
 
 
-    uxx = (-(np.pi**2)*(1-t)*tf.sin(np.pi*x)) + t*((2*(1-2*x)*theta_t[:,1:2]) - (2*N) + x*(1-x)*theta_tt[:,1:2])
-    ut = -tf.sin(np.pi*x) + x*(1-x)*(N + t*theta_t[:,0:1])
+    uxx = (-(np.pi**2)*(1-t)*tf.sin(np.pi*x)) + t*((2*(1-2*x)*theta_t[:,0:1]) - (2*N) + x*(1-x)*theta_tt[:,0:1])
+    ut = -tf.sin(np.pi*x) + x*(1-x)*(N + t*theta_t[:,1:2])
 
     theta_err = uxx - ut
     print(theta_err.shape)
@@ -184,15 +190,17 @@ def train_step(model):
     grads = tape.gradient(L_ode, model.trainable_variables)
     #grads = [grad + weight_decay * weight for grad, weight in zip(grads, model.weights)]
 
+    loss_2 = loss2(model)
     # Run one step of gradient descent by updating
     # the value of the variables to minimize the loss.
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
-    return L_ode, grads
+    return L_ode, grads, loss_2-L_ode
 
 
 def train_model(model):
   try:
     losses = []
+    diffs = []
     #train_step_function = train_step(model)
 
     start = time.time()
@@ -202,18 +210,21 @@ def train_model(model):
         #weight_decay = weight_decay_func(s)
         for _ in tqdm(range(epoch_size)):
             mean_loss = []
+            mean_diff = []
             # t_interior = xts
             # t_interior_tf.assign(t_interior)
 
             for _ in range(batch_size):
                 #t_interior = sampler(sample_size, s)
                 #t_interior_tf.assign(t_interior)
-                current_loss, grads = train_step(model)
+                current_loss, grads, loss_diff = train_step(model)
                 # print(f"{current_loss.numpy()=}")
                 mean_loss.append(current_loss)
+                mean_diff.append(loss_diff)
 
             mean_loss = np.array(mean_loss).mean()
             losses.append(mean_loss)
+            diffs.append(np.array(mean_diff).mean())
 
         end = time.time()
         print(
@@ -230,13 +241,13 @@ def train_model(model):
 
         start = time.time()
 
-    return np.array(losses)
+    return np.array(losses), np.array(diffs)
   except KeyboardInterrupt:
     print("Interupted, making plots anyway")
-    return np.array(losses)
+    return np.array(losses), np.array(diffs)
 
 
-losses = train_model(ode_solver)
+losses, diffs = train_model(ode_solver)
 
 ode_solver.save("modelH.H5")
 
@@ -275,6 +286,7 @@ axs[0].grid()
 axs[1].grid()
 
 loss_line, = axs[1].plot(np.log10(losses), label = 'Training loss')
+loss_line, = axs[1].plot(np.log10(np.abs(diffs)), label = 'Loss differences')
 
 # mae_line, = axs[1].plot([],[], label = 'maximum absolute erorr')
 # mse_line, = axs[1].plot([],[], label = 'mean squared error')
