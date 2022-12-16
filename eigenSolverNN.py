@@ -216,9 +216,9 @@ class eigSolverNN():
 				self.eigvecs.append(eigvec)
 
 			#convert to tf.Tensor format
-			self.losses = tf.stack(self.losses)
-			self.eigvals = tf.stack(self.eigvals)
-			self.eigvecs = tf.stack(self.eigvecs)
+			self.losses = tf.convert_to_tensor(self.losses)
+			self.eigvals = tf.convert_to_tensor(self.eigvals)
+			self.eigvecs = tf.convert_to_tensor(self.eigvecs)
 
 			print(f"losses were: initial {self.losses[0]}, last: {self.losses[-1]}")
 			return None

@@ -135,14 +135,21 @@ def Search_Until_Find(A):
         solver.train_model(Nepochs, Nbatches)
         eigenvalue, eigvector = solver.compute_eig()
 
+        repeat_counter = 0
         #SHOULD CHECK THAT WHAT WE HAVE GOTTEN SO FAR *IS* AN EIGENVECTOR.
         #OTHERWISE, TRAINING AGAIN WOULD NOT MAKE SENSE
         if check_eig(eigenvalue, eigvector, A):
             if not np.any(abs(np.array(eigenvalues)-eigenvalue)<0.01):
+                print(f'Found new eigenvector: \n {eigvector} \n eigenvalue {eigenvalue}')
                 eigenvalues.append(eigenvalue)
                 eigenvectors.append(eigvector)
-
-        starting_point = create_orthogonal(eigenvectors[:i+1, :])
+                repeat_counter = 0
+            else:
+                print(f'Duplicate {eigenvalue}')
+                repeat_counter += 1
+        else:
+            print(f'Found something not an eigenvector of A: \n {eigvector}')
+        starting_point = tf.random.normal([n], mean=0. , stddev=1+repeat_counter, dtype='float64')
 
     return eigenvectors, eigenvalues
 

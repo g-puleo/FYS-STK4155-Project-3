@@ -1,3 +1,5 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import numpy as np
 import time
@@ -20,9 +22,9 @@ from tensorflow.python.ops.numpy_ops import reshape
 
 
 inputs = tf.keras.Input(shape=(2))
-x = layers.Dense(4, activation = "sigmoid")(inputs)
-# x2 = layers.Dense(25, activation = "sigmoid")(x)
-output = layers.Dense(1)(x)
+x = layers.Dense(50, activation = "sigmoid")(inputs)
+x2 = layers.Dense(20, activation = "sigmoid")(x)
+output = layers.Dense(1)(x2)
 # output = layers.Dense(1)(x2)
 
 ode_solver = tf.keras.Model(inputs, output, name="ode_solver")
@@ -35,15 +37,15 @@ ode_solver = tf.keras.Model(inputs, output, name="ode_solver")
 # Sampling parameters
 T = 1
 # sampling_stages = 10**4
-sample_size = 400 # not used when using non stochastic methods
+sample_size = 100 # not used when using non stochastic methods
 
 #Training parameters
-batch_size = 50
-epochs = 30
-epoch_size = 100
+batch_size = 4
+epochs = 10
+epoch_size = 1000
 
-ts = np.linspace(0,T,20)
-x = np.linspace(0,1,20)
+ts = np.linspace(0,T,10)
+x = np.linspace(0,1,10)
 xs, ts = np.meshgrid(x, ts)
 # print(f"{xs.shape=}\,{ts.shape=}")
 xts = np.stack([xs.flatten(), ts.flatten()], axis = -1)
@@ -57,8 +59,8 @@ def weight_decay_func(s):
     return 0
 
 # optimizer = tf.keras.optimizers.Adam(init_lr)
-optimizer = tf.keras.optimizers.SGD(init_lr)
-# optimizer = tf.keras.optimizers.Adagrad(init_lr)
+# optimizer = tf.keras.optimizers.SGD(init_lr)
+optimizer = tf.keras.optimizers.Adam(init_lr)
 
 def sampler(size, ep):
     out = np.zeros((size,2))
@@ -68,11 +70,11 @@ def sampler(size, ep):
     out[:,1] = 0.5+(ep/epochs)*(out[:,1]-0.5)
     return out
     # return xts
-    
-# t_interior = sampler(sample_size, 1) 
-t_interior = xts 
-t_interior_tf = tf.Variable(t_interior, trainable=False)
 
+# t_interior = sampler(sample_size, 1)
+t_interior = xts
+t_interior_tf = tf.Variable(t_interior, trainable=False)
+print(ode_solver(t_interior_tf).shape)
 """
 def loss(model):
     # compute function value and derivatives at current sampled points
@@ -87,9 +89,9 @@ def loss(model):
 
     ddu = tape.gradient(du,t_interior_tf)
     theta_err = ddu[:,1] - du[:,0]
-    
+
     L1 = tf.reduce_mean(tf.square(theta_err))
-    
+
     return L1
 
 """
@@ -97,11 +99,11 @@ def loss(model):
     # compute function value and derivatives at current sampled points
     with tf.GradientTape(persistent=True) as tape:
         tape.watch(t_interior_tf)
-        theta = model(t_interior_tf)     
+        theta = model(t_interior_tf)
         theta_t = tape.gradient(theta,t_interior_tf)
 
     theta_tt = tape.gradient(theta_t,t_interior_tf)
-    
+
     # Test #####################
     # xt = t_interior_tf
     # theta = tf.exp(-xt[:,1]*np.pi**2)*tf.sin(xt[:,0]*np.pi)
@@ -110,7 +112,7 @@ def loss(model):
     # theta_t = tf.stack(theta_t, axis=1)
     # theta_tt = tf.stack(theta_tt, axis=1)
     # Test #####################
-    
+
     # print(f"{theta=}")
     # print(f"{t_interior_tf=}")
     # print(f"\n\n\n{theta_t=},\n{theta_tt=}\n\n\n")
@@ -119,79 +121,94 @@ def loss(model):
     # print(f"{theta_tt=}")
     # print(f"{t_interior_tf[:,0]=}")
     # print(f"{t_interior_tf[:,1]=}")
-    t = t_interior_tf[:,0]
-    x = t_interior_tf[:,1]
+    t = t_interior_tf[:,0, np.newaxis]
+    x = t_interior_tf[:,1, np.newaxis]
     N = tf.cast(theta, np.float64)#[:,0]
-    
+
     # e1 = tf.sin(np.pi*x)
     # e2 = (t-1)*np.pi**2*e1
     # e3 = -2*t*N
     # e4 = t*(2-4*x)*theta_t[:,1]
-    # e5 = x*(1-x)*(t*(theta_tt[:,1]-theta_t[:,0])-N)    
-    
+    # e5 = x*(1-x)*(t*(theta_tt[:,1]-theta_t[:,0])-N)
+
     # theta_err = e1+e2+e3+e4+e5
-    
+
     # print(f"{theta_err=}")
     # print(f"{e1=}")
     # print(f"{e2=}")
     # print(f"{e3=}")
     # print(f"{e4=}")
     # print(f"{e5=}")
-    
-    
-    uxx = (-(np.pi**2)*(1-t)*tf.sin(np.pi*x)) + t*((2*(1-x)*theta_t[:,1]) - (2*N) + x*(1-x)*theta_tt[:,1])
-    ut = -tf.sin(np.pi*x) + x*(1-x)*(N + t*theta_t[:,0])
-    
+
+
+    uxx = (-(np.pi**2)*(1-t)*tf.sin(np.pi*x)) + t*((2*(1-2*x)*theta_t[:,1:2]) - (2*N) + x*(1-x)*theta_tt[:,1:2])
+    ut = -tf.sin(np.pi*x) + x*(1-x)*(N + t*theta_t[:,0:1])
+
     theta_err = uxx - ut
-    
-    print(theta_err)
-    print(uxx)
-    print(ut)
+    print(theta_err.shape)
+    # print(theta_err)
     # print(dir(theta_err))
     # # print(theta_err.numpy()s)
-    
+
     L1 = tf.reduce_mean(tf.square(theta_err))
     # print(f"{L1=}")
     return L1
 #"""
+# def train_step(model):
+#   @tf.function
+#   def inner_func():
+#     with tf.GradientTape() as tape:
+#       # Compute the loss value for this minibatch.
+#       L_ode = loss(model)
+#
+#     # Use the gradient tape to automatically retrieve
+#     # the gradients of the trainable variables with respect to the loss.
+#     grads = tape.gradient(L_ode, model.trainable_variables)
+#     #grads = [grad + weight_decay * weight for grad, weight in zip(grads, model.weights)]
+#
+#     # Run one step of gradient descent by updating
+#     # the value of the variables to minimize the loss.
+#     optimizer.apply_gradients(zip(grads, model.trainable_variables))
+#     return L_ode, grads
+#   return inner_func
+
+
+@tf.function
 def train_step(model):
-  @tf.function
-  def inner_func():
     with tf.GradientTape() as tape:
       # Compute the loss value for this minibatch.
-      L_ode = tf.reduce_sum(loss(model))
-      
+      L_ode = loss(model)
+
     # Use the gradient tape to automatically retrieve
     # the gradients of the trainable variables with respect to the loss.
     grads = tape.gradient(L_ode, model.trainable_variables)
-    # grads = [grad + weight_decay * weight for grad, weight in zip(grads, model.weights)]
-    
+    #grads = [grad + weight_decay * weight for grad, weight in zip(grads, model.weights)]
+
     # Run one step of gradient descent by updating
     # the value of the variables to minimize the loss.
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
     return L_ode, grads
-  return inner_func
 
 
 def train_model(model):
   try:
     losses = []
-    train_step_function = train_step(model)
-    
+    #train_step_function = train_step(model)
+
     start = time.time()
     for s in range(1,epochs+1):
         step_size = init_lr*decay_rate**s
-        optimizer.lr.assign(step_size)    
-        weight_decay = weight_decay_func(s) 
+        optimizer.lr.assign(step_size)
+        #weight_decay = weight_decay_func(s)
         for _ in tqdm(range(epoch_size)):
             mean_loss = []
             # t_interior = xts
             # t_interior_tf.assign(t_interior)
-            
-            for _ in range(batch_size): 
-                t_interior = sampler(sample_size, s) 
-                t_interior_tf.assign(t_interior)
-                current_loss, grads = train_step_function()
+
+            for _ in range(batch_size):
+                #t_interior = sampler(sample_size, s)
+                #t_interior_tf.assign(t_interior)
+                current_loss, grads = train_step(model)
                 # print(f"{current_loss.numpy()=}")
                 mean_loss.append(current_loss)
 
@@ -200,8 +217,8 @@ def train_model(model):
 
         end = time.time()
         print(
-        f"""Training loss of value func at step {s*100}: 
-        loss: {mean_loss}. 
+        f"""Training loss of value func at step {s*100}:
+        loss: {mean_loss}.
         ######################
         """)
 
@@ -218,9 +235,10 @@ def train_model(model):
     print("Interupted, making plots anyway")
     return np.array(losses)
 
+
 losses = train_model(ode_solver)
 
-ode_solver.save("model.H5")
+ode_solver.save("modelH.H5")
 
 def model(xt):
     return (1-xt[:,1])*np.sin(xt[:,0]*np.pi) + xt[:,0]*(1-xt[:,0])*xt[:,1] * ode_solver(tf.Variable(xt))[:,0]
@@ -263,7 +281,7 @@ loss_line, = axs[1].plot(np.log10(losses), label = 'Training loss')
 
 
 axs[1].legend()
-# plt.show()
+plt.show()
 
 # log_losses = np.log10(losses)
 # mae = []
@@ -279,15 +297,15 @@ def AnimationFunction(frame):
     # x = t_points
     # y = np.array(simulations[frame])
     # nn_approx.set_data((x,y))
-    
+
     # error = (sol - y[:,0])
-    
+
     # title.set_text(f'training batches: {frame}')
-    # running_x = list(range(frame)) 
+    # running_x = list(range(frame))
     # loss_line.set_data((running_x,log_losses[:frame]))
     # mse_line.set_data((running_x, mse[:frame]))
     # mae_line.set_data((running_x, mae[:frame]))
-    
+
 # AnimationFunction(len(sol)-1)
 
 # plt.savefig("test.png")
@@ -301,5 +319,5 @@ anim_created.save("animation.gif", writer = "pillow", fps = 30)
 # video = anim_created.to_html5_video()
 # html = display.HTML(video)
 # display.display(html)
- 
+
 plt.close()
