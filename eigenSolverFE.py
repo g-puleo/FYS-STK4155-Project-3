@@ -27,6 +27,7 @@ def forward_euler_sol(A, x0, Tmax=1, Nsteps=2000):
 	for i in range(Nsteps-1):
 		xlast = x[:,i:i+1]
 		x[:,i+1:i+2] = xlast + dt*(f(xlast, A)-xlast)
-		
+
+
 
 	return t, x
