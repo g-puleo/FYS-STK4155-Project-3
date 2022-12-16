@@ -22,7 +22,7 @@ class FDSolver():
 			dx: size of space step (note that this must have been used to compute u0)
 			dt: size of time step
 		'''
-		self.u = u0 
+		self.u = u0
 		self.check_bc()
 		self.alpha = dt/dx**2
 		self.check_convergence()
@@ -33,11 +33,7 @@ class FDSolver():
 
 		#compute difference between consecutive elements (approximately prop. to du/dx)
 		diff1 = np.ediff1d(self.u)
-		#do it again, to compute approximate second derivative 
+		#do it again, to compute approximate second derivative
 		diff2 = np.ediff1d(diff1)
 		#update state of function u
 		self.u[1:-1]+=self.alpha*diff2
-
-
-
-
