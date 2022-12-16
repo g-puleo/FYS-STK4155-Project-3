@@ -18,7 +18,8 @@ def create_orthogonal(vectors_array):
     returns:
     orthogonal_vector: vector such that the dot product
          orthogonal_vector * vectors_array[ii] = 0 for all ii.
-    Note that this will be the 0 vector if there are more than n vectors in vectors_array .
+        IMPORTANT NOTE: this is true under the assumption that vectors_array is an orthogonal set.
+        Note that this will be the 0 vector if there are more than n vectors in vectors_array .
     """
     n = len(vectors_array[0]) #size of vectors
     orthogonal_vector = np.random.randn(n)
