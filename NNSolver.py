@@ -20,7 +20,7 @@ from tensorflow.python.ops.numpy_ops import reshape
 
 
 inputs = tf.keras.Input(shape=(2))
-x = layers.Dense(8, activation = "sigmoid")(inputs)
+x = layers.Dense(4, activation = "sigmoid")(inputs)
 # x2 = layers.Dense(25, activation = "sigmoid")(x)
 output = layers.Dense(1)(x)
 # output = layers.Dense(1)(x2)
@@ -39,7 +39,7 @@ sample_size = 400 # not used when using non stochastic methods
 
 #Training parameters
 batch_size = 50
-epochs = 100
+epochs = 30
 epoch_size = 100
 
 ts = np.linspace(0,T,20)
@@ -49,22 +49,23 @@ xs, ts = np.meshgrid(x, ts)
 xts = np.stack([xs.flatten(), ts.flatten()], axis = -1)
 # print(f"{xts.shape=}")
 
-init_lr = 1e-1
-decay_rate = (1/7)**0.01
+init_lr = 5e-3
+decay_rate = (1/7)**0.0
 weight_decay = 1e-5
 def weight_decay_func(s):
     # return 10**(-5 - 1*(s/epochs))
     return 0
 
 # optimizer = tf.keras.optimizers.Adam(init_lr)
-# optimizer = tf.keras.optimizers.SGD(init_lr)
-optimizer = tf.keras.optimizers.Adagrad(init_lr)
+optimizer = tf.keras.optimizers.SGD(init_lr)
+# optimizer = tf.keras.optimizers.Adagrad(init_lr)
 
 def sampler(size, ep):
     out = np.zeros((size,2))
     # out[:,0] = np.random.uniform(low=0., high=(ep/epochs)*T,  size=(size)).astype(np.float32)
     out[:,0] = np.random.uniform(low=0., high=T,  size=(size)).astype(np.float32)
     out[:,1] = np.random.uniform(low=0., high=1., size=(size)).astype(np.float32)
+    out[:,1] = 0.5+(ep/epochs)*(out[:,1]-0.5)
     return out
     # return xts
     
@@ -143,7 +144,9 @@ def loss(model):
     
     theta_err = uxx - ut
     
-    # print(theta_err)
+    print(theta_err)
+    print(uxx)
+    print(ut)
     # print(dir(theta_err))
     # # print(theta_err.numpy()s)
     
@@ -161,7 +164,7 @@ def train_step(model):
     # Use the gradient tape to automatically retrieve
     # the gradients of the trainable variables with respect to the loss.
     grads = tape.gradient(L_ode, model.trainable_variables)
-    grads = [grad + weight_decay * weight for grad, weight in zip(grads, model.weights)]
+    # grads = [grad + weight_decay * weight for grad, weight in zip(grads, model.weights)]
     
     # Run one step of gradient descent by updating
     # the value of the variables to minimize the loss.
