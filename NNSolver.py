@@ -39,7 +39,7 @@ xts = np.stack([xs.flatten(), ts.flatten()], axis = -1)
 RANDOM_RESAMPLING = True
 
 init_lr = 5e-3
-decay_rate = 0 #learning rate decay
+decay_rate = 1 #learning rate decay
 weight_decay = 0 #ridge regrassion parameter
 def weight_decay_func(s):
     return 0
@@ -50,8 +50,8 @@ optimizer = tf.keras.optimizers.Adam(init_lr)
 
 def sampler(ep):
     out = np.zeros_like(xts)
-    out[:,0] = np.random.uniform(low=0., high=T,  size=(out.size[0])).astype(np.float32)
-    out[:,1] = np.random.uniform(low=0., high=1., size=(out.size[0])).astype(np.float32)
+    out[:,0] = np.random.uniform(low=0., high=T,  size=(out.shape[0])).astype(np.float32)
+    out[:,1] = np.random.uniform(low=0., high=1., size=(out.shape[0])).astype(np.float32)
     out[:,1] = 0.5+(ep/epochs)*(out[:,1]-0.5)
     return out
 
