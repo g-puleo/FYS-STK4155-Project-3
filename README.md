@@ -7,9 +7,29 @@
 
 <h4 align="center">Solving the diffusion equation, and diagonalizing a symmetrical matrix, with numerical methods and neural networks.</h4>
 
+![](https://github.com/giammy00/FYS-STK4155-Project-3/blob/main/1M_animation.gif)
+## Description
+
+In this project we solve the diffusion eqaution:
+
 $$ \frac{\partial^2 u}{\partial x^2} = \frac{\partial u}{\partial t} $$
 
+by using the finite-difference method and with a neural network. We also look at the ordinary differential equation for finding eigenvectors of a symmetrical matrix:
+
+$$     \frac{dx}{dt} = -x(t) + f( x (t))  $$
+
+where 
+
+$$     f ( x) =  \left[ x^\intercal  x A + (1- x^\intercal A x)I\right] x $$
+
+and try to solve it with forward euler and with a neural network.
+
 ## Files explained
++ notebooks
+  + Eigenvectors.ipynb - Notebook going through our attempts to find all eigenvectors of a symmetric matrix
+  + FDScheme.ipynb - Notebook going through how we approximated the solution to the diffusion equation witht he finit-difference method
+  + Notebook_1.ipynb - Notebook going through the process of diagonalizing a symmetric matrix with forward euler. 
+* Report.pdf - The report of our project.
 * 1M_animation.gif - Animation of our approximate solution to the diffsuion equation using a neural net
 * plotter.py - Different plotting functions
 * FDSolver.py - Approximating the diffusion equation with finite-difference scheme
