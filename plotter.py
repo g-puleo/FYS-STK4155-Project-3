@@ -75,17 +75,18 @@ def plot_fd_solutions(u, x, t, t1_index, t2_index):
     true_v_fd.plot(x, u[t1_index, :], label = t1)
     true_v_fd.plot(x, u[t2_index, :], label = t2)
 
-    off_center = abs(x-0.5)
-    error_1 = abs(true_solution(x, t[t1_index])-u[t1_index, :])/off_center
-    error_2 = abs(true_solution(x, t[t2_index])-u[t2_index, :])/off_center
+    error_1 = abs(true_solution(x, t[t1_index])[1:-2]-u[t1_index, :][1:-2])/true_solution(x, t[t1_index])[1:-2]
+    error_2 = abs(true_solution(x, t[t2_index])[1:-2]-u[t2_index, :][1:-2])/true_solution(x, t[t2_index])[1:-2]
 
     error_plot.set_xlabel('x')
-    error_plot.set_ylabel('Absolute Relative Error')
+    error_plot.set_ylabel('Relative Error')
 
-    error_plot.plot(x, error_1, label=t1)
-    error_plot.plot(x, error_2, label=t2)
-
-    plt.legend()
+    #error_plot.set_yscale('log')
+    error_plot.plot(x[1:-2], error_1, label=t1)
+    error_plot.plot(x[1:-2], error_2, label=t2)
+    error_plot.plot([], [], color='blue', label='True Solutions')
+    #true_v_fd.legend()
+    error_plot.legend()
 
     return fig
 
