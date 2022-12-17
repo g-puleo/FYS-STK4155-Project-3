@@ -137,6 +137,8 @@ def Search_Until_Find(A, Nattempts=10, Nepochs=50000, Nbatches=1):
                     model_list.append(solver)
                 else:
                     print(f'Duplicate {eigenvalue}')
+
+                train_again=False
             else:
                 print(f'Found something not an eigenvector of A: \n {eigvector}')
                 print(f"Do you want to keep training the same model?[y/n]")
