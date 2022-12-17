@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
+import matplotlib as mlt
 
 figsize = (3.313, 3)
 plt.rc('text', usetex=True)
@@ -60,7 +61,8 @@ def plot_fd_solutions(u, x, t, t1_index, t2_index):
     t1 = f't = {t[t1_index]:.2f}'
     t2 = f't= {t[t2_index]:.2f}'
 
-    fig, (true_v_fd, error_plot) = plt.subplots(1, 2, figsize=(figsize[0]*2.2, figsize[1]))
+    fig, (true_v_fd, error_plot) = plt.subplots(1, 2, figsize=(figsize[0]*2, figsize[1]))
+    fig.set_tight_layout(True)
 
     true_v_fd.grid()
     error_plot.grid()
