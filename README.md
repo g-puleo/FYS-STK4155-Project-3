@@ -25,6 +25,10 @@ $$     f ( x) =  \left[ x^\intercal  x A + (1- x^\intercal A x)I\right] x $$
 and try to solve it with forward euler and with a neural network.
 
 ## Files explained
++ notebooks
+  + Eigenvectors.ipynb - Notebook going through our attempts to find all eigenvectors of a symmetric matrix
+  + FDScheme.ipynb - Notebook going through how we approximated the solution to the diffusion equation witht he finit-difference method
+  + Notebook_1.ipynb - Notebook going through the process of diagonalizing a symmetric matrix with forward euler. 
 * Report.pdf - The report of our project.
 * 1M_animation.gif - Animation of our approximate solution to the diffsuion equation using a neural net
 * plotter.py - Different plotting functions
