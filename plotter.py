@@ -53,7 +53,24 @@ def true_solution(x, t):
     return np.exp(-t*np.pi**2)*np.sin(x*np.pi)
 
 def plot_fd_solutions(u, x, t, t1_index, t2_index):
+    """
+    Plots an approximation to the diffusion equation together with the exact
+    solution and the relative error.
 
+    Paramters: u (np.array, shape = (len(t), len(x)) ) - The approximate solution.
+
+               x (np.array, shape = (len(x), ) ) - The position axis
+
+               t (np.array, shape = (len(t), ) ) - The time axis
+
+               t1_index (int) - The index of the first time point to plot the
+               approximate and exact solution.
+
+               t2_index (int) - The index of the second time point to plot the
+               approximate and exact solution.
+
+    Returns: matplotlib.figure
+    """
     high_def_x = np.linspace(0, 1, 1000)
     true1 = true_solution(high_def_x, t[t1_index])
     true2 = true_solution(high_def_x, t[t2_index])
@@ -87,17 +104,6 @@ def plot_fd_solutions(u, x, t, t1_index, t2_index):
     error_plot.plot([], [], color='blue', label='True Solutions')
     #true_v_fd.legend()
     error_plot.legend()
-
-    return fig
-
-def plot_resolution(dx, mean_error):
-
-    fig = plt.figure(figsize=figsize)
-    fig.set_tight_layout(True)
-    plt.xlabel('\Delta{x}')
-    plt.ylabel('Mean Squared Error')
-
-    plt.plot(dx, mean_error)
 
     return fig
 
