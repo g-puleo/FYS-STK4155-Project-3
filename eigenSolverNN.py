@@ -13,7 +13,7 @@ tf.keras.backend.set_floatx('float64') #set default precision to double
 
 class eigSolverNN():
 	'''class for diagonalization of a symmetric matrix A, by training of a neural network.
-	The NN is rained to solve the ODE defined by Yi et al. in
+	The NN is trained to solve the ODE defined by Yi et al. in
 	https://www.researchgate.net/publication/222949356_Neural_networks_based_approach_for_computing_eigenvectors_and_eigenvalues_of_symmetric_matrix
 	The solution of the ODE is proven to converge to an eigenvector of the matrix A.
 
@@ -21,10 +21,10 @@ class eigSolverNN():
 		model: 			Tensorflow model which is used to fit the solution to the ODE
 		A: 				Symmetric matrix to diagonalize
 		x0: 			initial condition of ODE
-		optimizer: 		tf.keras.optimizers.Optimizer which does SGD
+		optimizer: 		tf.keras.optimizers.Optimizer which does gradient descent.
 		t_grid:			the grid of time steps where solution is wanted
 		n_dim: 			A.shape[0] (dimension of space)
-		Id: 			Identity matrix
+		Id: 			Identity matrix of same shape as self.A 
 
 		The following attributes are availablle after calling the method train_model()
 
@@ -57,7 +57,7 @@ class eigSolverNN():
 			Nhid:		Number of neurons in hidden layer, defaults to 100.
 			Tmax:		Largest time instant where the net is trained. Defaults to 1
 			N_tpoints:	Number of time steps in the grid. Default: 100.
-			'''
+		'''
 
 		#DEFINE DEFAULT NEURAL NET MODEL
 
