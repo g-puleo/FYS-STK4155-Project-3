@@ -100,3 +100,14 @@ def plot_resolution(dx, mean_error):
     plt.plot(dx, mean_error)
 
     return fig
+
+def plot_NN_losses(losses):
+
+    fig = plt.figure(figsize=figsize)
+    fig.set_tight_layout(True)
+    plt.plot(losses)
+    plt.yscale("log")
+    plt.xlabel("Training time")
+    plt.ylabel("Training loss")
+
+    return fig
