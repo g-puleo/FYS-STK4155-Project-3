@@ -7,7 +7,7 @@
 
 <h4 align="center">Solving the diffusion equation, and diagonalizing a symmetrical matrix, with numerical methods and neural networks.</h4>
 
-$$ \frac{\partial^2 u}{\partial x^2} = \frac{\partial u}{\paritial t} $$
+$$ \frac{\partial^2 u}{\partial x^2} = \frac{\partial u}{\partial t} $$
 
 ## Files explained
 * 1M_animation.gif - Animation of our approximate solution to the diffsuion equation using a neural net
