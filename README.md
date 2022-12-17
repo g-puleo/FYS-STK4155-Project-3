@@ -9,6 +9,8 @@
 
 $$ \frac{\partial^2 u}{\partial x^2} = \frac{\partial u}{\partial t} $$
 
+![](https://github.com/giammy00/FYS-STK4155-Project-3/blob/main/1M_animation.gif)
+
 ## Files explained
 * 1M_animation.gif - Animation of our approximate solution to the diffsuion equation using a neural net
 * plotter.py - Different plotting functions
