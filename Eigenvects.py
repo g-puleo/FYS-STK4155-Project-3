@@ -43,6 +43,7 @@ def check_eig(eigval, eigvec, A, tolerance=0.1):
     lambdavec = (A@eigvec.T)/eigvec.T
     #dividing by eigval should give a vector of ones
     ones_vec = lambdavec/eigval
+    print("For a perfect eigenvector, the following should be all 1.000")
     print(ones_vec)
     #check that this vector is close enough to np.ones()
     A = np.allclose(ones_vec, np.ones(ones_vec.shape), rtol=tolerance)
@@ -83,41 +84,6 @@ def findEigenvectors(A):
 
     return eigenvectors, eigenvalues
 
-# def Many_Random_Points(number_of_points, A, tolerance=0.1, Nepochs=int(1e5), Nbatches=4):
-#     '''
-#     '''
-#     dimension = A.shape[0]
-#     class_instances = []
-
-#     eigenvalues = []
-#     eigenvectors =[]
-
-#     unique_eigenvalues = []
-#     unique_eigenvectors = []
-
-#     #create a lot of class instances each initialized with a random initial cond.
-#     for _ in range(number_of_points):
-#         x0 = tf.random.normal([dimension], dtype='float64')
-#         neural_net_solver = esnn.eigSolverNN(A, x0)
-#         neural_net_solver.optimizer.lr.assign(learning_rate)
-#         class_instances.append(
-#             neural_net_solver
-#         )
-
-#     #train every solver on the corresponding initial condition
-#     for i, neural_net_solver in enumerate(class_instances):
-#         neural_net_solver.train_model(Nepochs, Nbatches, tolerance=tolerance)
-#         eigval, eigvec = neural_net_solver.compute_eig()
-#         if check_eig(eigval, eigvec, A):
-#             eigenvalues[i], eigenvectors[i] = eigval, eigvec
-
-#     #
-#     for i, eigval in enumerate(eigenvalues):
-#         condition = abs((np.array(unique_eigenvalues)-eigval))<(0.2*eigval)
-#         if not np.any(condition):
-#             unique_eigenvalues.append(eigval)
-
-#     return unique_eigenvalues
 
 def Search_Until_Find(A, Nattempts=10, Nepochs=50000, Nbatches=1):
     '''
@@ -127,6 +93,11 @@ def Search_Until_Find(A, Nattempts=10, Nepochs=50000, Nbatches=1):
         Nattempts:  number of models which you want to train. 
         Nepochs:    number of epochs for training each model
         Nbatches:   number of batches for SGD . Defaults to 1 (non stochastic GD)
+    Returns:
+        [eigenvectors, eigenvalue, model_list]:
+                    three lists containing the eigenvectors, eigenvalues, and the corresponding trained solvers.
+                    Note that these are returned also in the case of a Keyboardinterrupt
+
     '''
     n = A.shape[0]
 
@@ -136,14 +107,17 @@ def Search_Until_Find(A, Nattempts=10, Nepochs=50000, Nbatches=1):
     
     attempt_counter = 0
 
+    train_again = False
     try:
-        while len(eigenvalues) < 6 and attempt_counter<Nattempts:
+        while len(eigenvalues) < n and attempt_counter<Nattempts:
 
             print(f"### FINDING EIGENVECTOR NR. {len(eigenvalues)} ###\n")
 
             #choose a random initial condition to initialize solver
-            starting_point = tf.random.normal([n], dtype='float64')
-            solver = esnn.eigSolverNN(A, starting_point)
+            #train_again is true when user asks for continue training the previous model
+            if not train_again:
+                starting_point = tf.random.normal([n], dtype='float64')
+                solver = esnn.eigSolverNN(A, starting_point)
 
             #train the model
             solver.train_model(Nepochs, Nbatches, print_info=False)
@@ -165,10 +139,17 @@ def Search_Until_Find(A, Nattempts=10, Nepochs=50000, Nbatches=1):
                     print(f'Duplicate {eigenvalue}')
             else:
                 print(f'Found something not an eigenvector of A: \n {eigvector}')
+                print(f"Do you want to keep training the same model?[y/n]")
+                user_in = input()
+                if user_in in ['y','Y']:
+                    train_again=True
+                else:
+                    train_again=False
+
         return eigenvectors, eigenvalues, model_list
 
     except KeyboardInterrupt:
-        
+
         return eigenvectors, eigenvalues, model_list
 
 if __name__ == '__main__':
