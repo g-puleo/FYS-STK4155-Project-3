@@ -118,7 +118,9 @@ def Search_Until_Find(A, Nattempts=10, Nepochs=50000, Nbatches=1):
             if not train_again:
                 starting_point = tf.random.normal([n], dtype='float64')
                 solver = esnn.eigSolverNN(A, starting_point)
-
+                attempt_counter+=1
+            
+            print(f"attempt number {attempt_counter}.")
             #train the model
             solver.train_model(Nepochs, Nbatches, print_info=False)
 
@@ -137,10 +139,11 @@ def Search_Until_Find(A, Nattempts=10, Nepochs=50000, Nbatches=1):
                     model_list.append(solver)
                 else:
                     print(f'Duplicate {eigenvalue}')
-
+                #set train again to false to ensure that you will train a new model afterwards
                 train_again=False
             else:
                 print(f'Found something not an eigenvector of A: \n {eigvector}')
+                print(f"Approximate eigenvalue is {eigenvalue[0]}.")
                 print(f"Do you want to keep training the same model?[y/n]")
                 user_in = input()
                 if user_in in ['y','Y']:
