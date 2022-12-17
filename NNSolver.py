@@ -37,15 +37,15 @@ ode_solver = tf.keras.Model(inputs, output, name="ode_solver")
 # Sampling parameters
 T = 1
 # sampling_stages = 10**4
-sample_size = 100 # not used when using non stochastic methods
+sample_size = 400 # not used when using non stochastic methods
 
 #Training parameters
-batch_size = 4
-epochs = 10
-epoch_size = 1000
+batch_size = 100
+epochs = 100
+epoch_size = 100
 
-ts = np.linspace(0,T,10)
-x = np.linspace(0,1,10)
+ts = np.linspace(0,T,20)
+x = np.linspace(0,1,20)
 xs, ts = np.meshgrid(x, ts)
 # print(f"{xs.shape=}\,{ts.shape=}")
 xts = np.stack([xs.flatten(), ts.flatten()], axis = -1)
@@ -75,7 +75,7 @@ def sampler(size, ep):
 t_interior = xts
 t_interior_tf = tf.Variable(t_interior, trainable=False)
 print(ode_solver(t_interior_tf).shape)
-#"""
+"""
 def loss2(model):
     # compute function value and derivatives at current sampled points
     with tf.GradientTape(persistent=True) as tape:
@@ -151,7 +151,7 @@ def loss(model):
     ut = -tf.sin(np.pi*x) + x*(1-x)*(N + t*theta_t[:,1:2])
 
     theta_err = uxx - ut
-    print(theta_err.shape)
+    # print(theta_err.shape)
     # print(theta_err)
     # print(dir(theta_err))
     # # print(theta_err.numpy()s)
@@ -190,17 +190,17 @@ def train_step(model):
     grads = tape.gradient(L_ode, model.trainable_variables)
     #grads = [grad + weight_decay * weight for grad, weight in zip(grads, model.weights)]
 
-    loss_2 = loss2(model)
+    # loss_2 = loss2(model)
     # Run one step of gradient descent by updating
     # the value of the variables to minimize the loss.
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
-    return L_ode, grads, loss_2-L_ode
+    return L_ode, grads#, loss_2-L_ode
 
 
 def train_model(model):
   try:
     losses = []
-    diffs = []
+    # diffs = []
     #train_step_function = train_step(model)
 
     start = time.time()
@@ -210,21 +210,21 @@ def train_model(model):
         #weight_decay = weight_decay_func(s)
         for _ in tqdm(range(epoch_size)):
             mean_loss = []
-            mean_diff = []
+            # mean_diff = []
             # t_interior = xts
             # t_interior_tf.assign(t_interior)
 
             for _ in range(batch_size):
                 #t_interior = sampler(sample_size, s)
                 #t_interior_tf.assign(t_interior)
-                current_loss, grads, loss_diff = train_step(model)
+                current_loss, grads = train_step(model)
                 # print(f"{current_loss.numpy()=}")
                 mean_loss.append(current_loss)
-                mean_diff.append(loss_diff)
+                # mean_diff.append(loss_diff)
 
             mean_loss = np.array(mean_loss).mean()
             losses.append(mean_loss)
-            diffs.append(np.array(mean_diff).mean())
+            # diffs.append(np.array(mean_diff).mean())
 
         end = time.time()
         print(
@@ -241,15 +241,16 @@ def train_model(model):
 
         start = time.time()
 
-    return np.array(losses), np.array(diffs)
+    return np.array(losses)#, np.array(diffs)
   except KeyboardInterrupt:
     print("Interupted, making plots anyway")
-    return np.array(losses), np.array(diffs)
+    return np.array(losses)#, np.array(diffs)
 
 
-losses, diffs = train_model(ode_solver)
+losses = train_model(ode_solver)
 
 ode_solver.save("modelH.H5")
+np.save("Losses", losses)
 
 def model(xt):
     return (1-xt[:,1])*np.sin(xt[:,0]*np.pi) + xt[:,0]*(1-xt[:,0])*xt[:,1] * ode_solver(tf.Variable(xt))[:,0]
@@ -268,6 +269,7 @@ xts = np.stack([xs.flatten(), ts.flatten()], axis = -1)
 # print(f"{(model(xts))=}")
 model = reshape(model(xts),(100,100))
 sol = sol(xts).reshape((100,100))
+np.save("Model_output", model)
 
 fig, axs = plt.subplots(2,1,figsize = (16,8), gridspec_kw={'height_ratios': [3, 1.5]})
 
@@ -286,7 +288,7 @@ axs[0].grid()
 axs[1].grid()
 
 loss_line, = axs[1].plot(np.log10(losses), label = 'Training loss')
-loss_line, = axs[1].plot(np.log10(np.abs(diffs)), label = 'Loss differences')
+# loss_line, = axs[1].plot(np.log10(np.abs(diffs)), label = 'Loss differences')
 
 # mae_line, = axs[1].plot([],[], label = 'maximum absolute erorr')
 # mse_line, = axs[1].plot([],[], label = 'mean squared error')
