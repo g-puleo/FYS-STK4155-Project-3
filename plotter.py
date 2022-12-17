@@ -75,9 +75,8 @@ def plot_fd_solutions(u, x, t, t1_index, t2_index):
     true_v_fd.plot(x, u[t1_index, :], label = t1)
     true_v_fd.plot(x, u[t2_index, :], label = t2)
 
-    off_center = abs(x-0.5)
-    error_1 = abs(true_solution(x, t[t1_index])-u[t1_index, :])/off_center
-    error_2 = abs(true_solution(x, t[t2_index])-u[t2_index, :])/off_center
+    error_1 = abs(true_solution(x, t[t1_index])-u[t1_index, :])/true_solution(x, t[t1_index])
+    error_2 = abs(true_solution(x, t[t2_index])-u[t2_index, :])/true_solution(x, t[t2_index])
 
     error_plot.set_xlabel('x')
     error_plot.set_ylabel('Absolute Relative Error')
