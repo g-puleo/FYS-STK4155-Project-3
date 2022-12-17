@@ -16,8 +16,10 @@ $$ \frac{\partial^2 u}{\partial x^2} = \frac{\partial u}{\partial t} $$
 
 by using the finite-difference method and with a neural network. We also look at the ordinary differential equation for finding eigenvectors of a symmetrical matrix:
 
-$$     \frac{dx}{dt} = -x(t) + f( x (t))  $$,
+$$     \frac{dx}{dt} = -x(t) + f( x (t))  $$
+
 where 
+
 $$     f ( x) =  \left[ x^\intercal  x A + (1- x^\intercal A x)I\right] x $$
 
 and try to solve it with forward euler and with a neural network.
