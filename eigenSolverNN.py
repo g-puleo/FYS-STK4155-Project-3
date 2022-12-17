@@ -168,14 +168,19 @@ class eigSolverNN():
 
 		return L
 
-
-	def train_model(self, Nepochs, Nbatches, tolerance=1e-8):
-		'''perform SGD using self.t_grid as dataset.
-			args: Nepochs: number of epochs for training
-				  Nbatches: number of batches
+	
+	def train_model(self, Nepochs, Nbatches, tolerance=1e-8, print_info=True):
+		'''perform SGD using self.t_grid as dataset. 
+			args: 
+					Nepochs:	number of epochs for training
+				  	Nbatches: 	number of batches
+				  	tolerance: 	stop training when the cost is smaller than tolerance
+				  	print_info: set this to false if you do not want to print model information at
+				  				the beginning of the training procedure.
 			returns: None'''
 
-		self.info()
+		if print_info:
+			self.info()
 
 		print(f"\n\n Training model with SGD using {Nbatches} batches and {Nepochs} epochs.")
 		try:
@@ -187,17 +192,18 @@ class eigSolverNN():
 			if Nbatches==1:
 
 				for epoch in tqdm(range(Nepochs)):
-					#shuffle dataset at every epoch
-					temp_grid = tf.random.shuffle(temp_grid)
-					curr_loss = self.gradient_step(t_current)
-
+					#update model
+					curr_loss = self.gradient_step(temp_grid)
+					#store current loss
+					self.losses.append(curr_loss)
 					if curr_loss < tolerance:
 						break
 			else:
 
+				temp_grid = tf.random.shuffle(temp_grid)
+
 				for epoch in tqdm(range(Nepochs)):
 					#shuffle dataset at every epoch
-					temp_grid = tf.random.shuffle(temp_grid)
 
 					for ii in range(Nbatches):
 						t_current = temp_grid[ii::Nbatches,:]
@@ -207,8 +213,8 @@ class eigSolverNN():
 
 					if curr_loss < tolerance:
 						break
-				#store loss
-				self.losses.append(curr_loss)
+					#store loss
+					self.losses.append(curr_loss)
 
 				#store eigvalues and eigvectors
 				eigval, eigvec = self.compute_eig()
@@ -216,9 +222,9 @@ class eigSolverNN():
 				self.eigvecs.append(eigvec)
 
 			#convert to tf.Tensor format
-			self.losses = tf.convert_to_tensor(self.losses)
-			self.eigvals = tf.convert_to_tensor(self.eigvals)
-			self.eigvecs = tf.convert_to_tensor(self.eigvecs)
+			self.losses = tf.stack(self.losses)
+			self.eigvals = tf.stack(self.eigvals)
+			self.eigvecs = tf.stack(self.eigvecs)
 
 			print(f"losses were: initial {self.losses[0]}, last: {self.losses[-1]}")
 			return None

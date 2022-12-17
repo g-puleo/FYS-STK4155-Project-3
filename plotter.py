@@ -115,5 +115,7 @@ def plot_NN_losses(losses):
     plt.yscale("log")
     plt.xlabel("Training time")
     plt.ylabel("Training loss")
-
+    plt.grid(visible=True)
+    
     return fig
+

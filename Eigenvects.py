@@ -30,7 +30,7 @@ def create_orthogonal(vectors_array):
 
     return orthogonal_vector/np.linalg.norm(orthogonal_vector)
 
-def check_eig(eigval, eigvec, A):
+def check_eig(eigval, eigvec, A, tolerance=0.1):
     '''check that eigvec is an eigenvector of A with eigenvalue eigval.
     All args must be given as tf.Tensor() instances, and are converted to numpy here.
     '''
@@ -45,7 +45,7 @@ def check_eig(eigval, eigvec, A):
     ones_vec = lambdavec/eigval
     print(ones_vec)
     #check that this vector is close enough to np.ones()
-    A = np.allclose(ones_vec, np.ones(ones_vec.shape), rtol=0.2)
+    A = np.allclose(ones_vec, np.ones(ones_vec.shape), rtol=tolerance)
     if not A:
         warnings.warn(f"eigenvector ({eigvec}) might not be an eigenvector of A.")
     return A
@@ -83,84 +83,93 @@ def findEigenvectors(A):
 
     return eigenvectors, eigenvalues
 
-def Many_Random_Points(number_of_points, A, learning_rate, tolerance=0.1, Nepochs=int(1e5), Nbatches=4):
-    dimension = A.shape[0]
-    class_instances = []
+# def Many_Random_Points(number_of_points, A, tolerance=0.1, Nepochs=int(1e5), Nbatches=4):
+#     '''
+#     '''
+#     dimension = A.shape[0]
+#     class_instances = []
 
-    eigenvalues = []
-    eigenvectors =[]
+#     eigenvalues = []
+#     eigenvectors =[]
 
-    unique_eigenvalues = []
-    unique_eigenvectors = []
+#     unique_eigenvalues = []
+#     unique_eigenvectors = []
 
-    for _ in range(number_of_points):
-        x0 = tf.random.normal([dimension], dtype='float64')
-        neural_net_solver = esnn.eigSolverNN(A, x0)
-        neural_net_solver.optimizer.lr.assign(learning_rate)
-        class_instances.append(
-            neural_net_solver
-        )
+#     #create a lot of class instances each initialized with a random initial cond.
+#     for _ in range(number_of_points):
+#         x0 = tf.random.normal([dimension], dtype='float64')
+#         neural_net_solver = esnn.eigSolverNN(A, x0)
+#         neural_net_solver.optimizer.lr.assign(learning_rate)
+#         class_instances.append(
+#             neural_net_solver
+#         )
 
-    for i, neural_net_solver in enumerate(class_instances):
-        neural_net_solver.train_model(Nepochs, Nbatches, tolerance=tolerance)
-        eigval, eigvec = neural_net_solver.compute_eig()
-        if check_eig(eigval, eigvec, A):
-            eigenvalues[i], eigenvectors[i] = eigval, eigvec
+#     #train every solver on the corresponding initial condition
+#     for i, neural_net_solver in enumerate(class_instances):
+#         neural_net_solver.train_model(Nepochs, Nbatches, tolerance=tolerance)
+#         eigval, eigvec = neural_net_solver.compute_eig()
+#         if check_eig(eigval, eigvec, A):
+#             eigenvalues[i], eigenvectors[i] = eigval, eigvec
 
-    for i, eigval in enumerate(eigenvalues):
-        condition = abs((np.array(unique_eigenvalues)-eigval))<(0.2*eigval)
-        if not np.any(condition):
-            unique_eigenvalues.append(eigval)
+#     #
+#     for i, eigval in enumerate(eigenvalues):
+#         condition = abs((np.array(unique_eigenvalues)-eigval))<(0.2*eigval)
+#         if not np.any(condition):
+#             unique_eigenvalues.append(eigval)
 
-    return unique_eigenvalues
+#     return unique_eigenvalues
 
-def Search_Until_Find(A):
+def Search_Until_Find(A, Nattempts=10, Nepochs=50000, Nbatches=1):
     '''
-    Find all eigenvectors of matrix A, using neural net.
-
+    Try to find all eigenvectors of A by training many neural networks to solve the ODE.
+    Args:
+        A:          matrix to diagonalize
+        Nattempts:  number of models which you want to train. 
+        Nepochs:    number of epochs for training each model
+        Nbatches:   number of batches for SGD . Defaults to 1 (non stochastic GD)
     '''
     n = A.shape[0]
 
     eigenvectors = []
     eigenvalues = []
+    model_list = []
+    
+    attempt_counter = 0
 
-    starting_point = tf.random.normal([n], dtype='float64')
+    try:
+        while len(eigenvalues) < 6 and attempt_counter<Nattempts:
 
-    #initialize instance of solver
-    Nepochs = 50000
-    Nbatches = 4
-    repeat_counter = 0
+            print(f"### FINDING EIGENVECTOR NR. {len(eigenvalues)} ###\n")
 
-    while len(eigenvalues) < 6:
-        print(f"### FINDING EIGENVECTOR NR.{len(eigenvalues)} ###\n")
-        solver = esnn.eigSolverNN(A, starting_point)
-        solver.train_model(Nepochs, Nbatches)
-        eigenvalue, eigvector = solver.compute_eig()
+            #choose a random initial condition to initialize solver
+            starting_point = tf.random.normal([n], dtype='float64')
+            solver = esnn.eigSolverNN(A, starting_point)
 
-        #SHOULD CHECK THAT WHAT WE HAVE GOTTEN SO FAR *IS* AN EIGENVECTOR.
-        #OTHERWISE, TRAINING AGAIN WOULD NOT MAKE SENSE
-        if check_eig(eigenvalue, eigvector, A):
-            if not np.any(abs(np.array(eigenvalues)-eigenvalue)<0.01):
-                print(f'Found new eigenvector: \n {eigvector} \n eigenvalue {eigenvalue}')
+            #train the model
+            solver.train_model(Nepochs, Nbatches, print_info=False)
 
-                #remove orthognality with other eigenvectors
-                for vec in eigenvectors:
-                    eigvector -= normalized_proj(eigvector, vec)
+            #and compute the estimated eigenvector (assuming its solver.x_tilde(solver.t_grid[-1]))
+            eigenvalue, eigvector = solver.compute_eig()
 
-                eigenvalues.append(eigenvalue[0])
-                eigenvectors.append(eigvector[0])
-                repeat_counter = 0
+            #check if it's an eigenvector
+            if check_eig(eigenvalue, eigvector, A):
+
+                #check that the eigenvalue/eigenvector pair hasn't already been found.
+                if not np.any(abs(np.array(eigenvalues)-eigenvalue)<0.01):
+                    print(f'Found new eigenvector: \n {eigvector} \n eigenvalue {eigenvalue}')
+                    #save the eigvalue/eigvec pair, and trained model which is able to reproduce the eigvector
+                    eigenvalues.append(eigenvalue[0])
+                    eigenvectors.append(eigvector[0])
+                    model_list.append(solver)
+                else:
+                    print(f'Duplicate {eigenvalue}')
             else:
-                print(f'Duplicate {eigenvalue}')
-                repeat_counter += 1
-        else:
-            print(f'Found something not an eigenvector of A: \n {eigvector}')
-        starting_point = tf.random.normal([n], mean=0. , stddev=1+repeat_counter, dtype='float64')
+                print(f'Found something not an eigenvector of A: \n {eigvector}')
+        return eigenvectors, eigenvalues, model_list
 
-        for vec in eigenvectors:
-            starting_point -= normalized_proj(starting_point, vec)
-
-    return eigenvectors, eigenvalues
+    except KeyboardInterrupt:
+        
+        return eigenvectors, eigenvalues, model_list
 
 if __name__ == '__main__':
     A = np.load('A.npy')
