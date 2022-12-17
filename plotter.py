@@ -75,15 +75,27 @@ def plot_fd_solutions(u, x, t, t1_index, t2_index):
     true_v_fd.plot(x, u[t1_index, :], label = t1)
     true_v_fd.plot(x, u[t2_index, :], label = t2)
 
-    error_1 = abs(true_solution(x, t[t1_index])-u[t1_index, :])
-    error_2 = abs(true_solution(x, t[t2_index])-u[t2_index, :])
+    off_center = abs(x-0.5)
+    error_1 = abs(true_solution(x, t[t1_index])-u[t1_index, :])/off_center
+    error_2 = abs(true_solution(x, t[t2_index])-u[t2_index, :])/off_center
 
     error_plot.set_xlabel('x')
-    error_plot.set_ylabel('Absolute Error')
+    error_plot.set_ylabel('Absolute Relative Error')
 
     error_plot.plot(x, error_1, label=t1)
     error_plot.plot(x, error_2, label=t2)
 
     plt.legend()
+
+    return fig
+
+def plot_resolution(dx, mean_error):
+
+    fig = plt.figure(figsize=figsize)
+    fig.set_tight_layout(True)
+    plt.xlabel('\Delta{x}')
+    plt.ylabel('Mean Squared Error')
+
+    plt.plot(dx, mean_error)
 
     return fig
