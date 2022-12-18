@@ -8,6 +8,9 @@
 <h4 align="center">Solving the diffusion equation, and diagonalizing a symmetrical matrix, with numerical methods and neural networks.</h4>
 
 ![](https://github.com/giammy00/FYS-STK4155-Project-3/blob/main/1M_animation.gif)
+
+The animation shows the output of a neural-network based solution of the diffusion equation (red), compared to the exact one (blue).
+
 ## Description
 
 In this project we solve the diffusion eqaution:
