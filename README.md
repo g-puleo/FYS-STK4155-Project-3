@@ -26,7 +26,7 @@ and try to solve it with forward euler and with a neural network.
 
 ## Reproducing the results
 
-+ To reproduce our training of the network to solve the diffusion equation, simply run the script `NNSolver.py` in a terminal. `Notebook_00.ipynb` contains the numerical solution and `Notebook_04.ipynb` contains relevant plots.
++ To reproduce our training of the network to solve the diffusion equation, simply run the script `NNSolver.py` in a terminal. `Notebook_00.ipynb` contains the numerical solution and `Notebook_04.ipynb` contains relevant plots of the NN solution.
 + Diagonalization of a symmetric matrix is shown in notebooks 01, 02, 03 in the notebook folder.
 
 ## Files explained
