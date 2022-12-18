@@ -230,8 +230,10 @@ class eigSolverNN():
 			return None
 
 		except KeyboardInterrupt:
-
-			print(f"losses were: initial {self.losses[0]}, last: {self.losses[epoch-1]}")
+			if not self.losses:
+				print("No epoch was terminated.")
+			else:
+				print(f"losses were: initial {self.losses[0]}, last: {self.losses[epoch-1]}")
 			return None
 
 	def compute_eig( self ) :
